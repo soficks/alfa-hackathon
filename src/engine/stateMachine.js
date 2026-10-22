@@ -1,0 +1,9 @@
+export const APP_STATES = {
+  DRAFT: 'DRAFT',
+  ENRICHMENT: 'ENRICHMENT_IN_PROGRESS', 
+  NEED_INFO: 'NEED_INFO', // Остановка для запроса документов[cite: 4, 5]
+  SCORING: 'SCORING',
+  APPROVED: 'APPROVED',
+  COUNTER_OFFER: 'COUNTER_OFFER',
+  DECLINED: 'DECLINED'
+};
