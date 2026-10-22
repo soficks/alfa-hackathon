@@ -1,0 +1,530 @@
+.app {
+  --sidebar-w: 216px;
+  min-height: 100vh;
+}
+
+.app--collapsed {
+  --sidebar-w: 76px;
+}
+
+/* ---------- Сайдбар ---------- */
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 30;
+  width: var(--sidebar-w);
+  display: flex;
+  flex-direction: column;
+  padding: 22px 12px 14px;
+  background: linear-gradient(130deg, var(--sidebar), var(--sidebar-2));
+  color: #eef0f1;
+  transition: width 0.2s ease;
+}
+
+.sidebar__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin: 0 0 34px 10px;
+}
+
+.sidebar--collapsed .sidebar__top {
+  flex-direction: column;
+  margin-left: 0;
+  gap: 14px;
+}
+
+.sidebar__toggle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  color: #9ba5ad;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sidebar__toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.logo svg {
+  flex: none;
+  width: 34px;
+  height: auto;
+}
+
+.logo__text {
+  font-size: 16px;
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.sidebar__nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nav-slot {
+  position: relative;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font-size: 13px;
+  color: #e3e6e9;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+
+.nav-item svg {
+  flex: none;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.nav-item--active,
+.nav-item--active:hover {
+  background: var(--red);
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(8, 13, 21, 0.18);
+}
+
+.sidebar--collapsed .nav-item {
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar--collapsed .nav-item__label {
+  display: none;
+}
+
+/* Тёмная панель «Следующий шаг для вашего бизнеса» */
+.finance-menu {
+  position: absolute;
+  top: -24px;
+  left: calc(100% + 12px);
+  z-index: 50;
+  width: 300px;
+  padding: 24px 26px 20px;
+  border-radius: 0 14px 14px 0;
+  border: 1px solid #343b3f;
+  background: #202629;
+  box-shadow: 12px 18px 38px rgba(16, 27, 37, 0.25);
+  animation: slide-in 0.16s ease-out;
+}
+
+/* мостик, чтобы курсор не «терял» меню между пунктом и панелью */
+.finance-menu::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 14px;
+}
+
+.finance-menu .mini-label {
+  color: #9ea8b1;
+}
+
+.finance-menu__title {
+  margin: 6px 0 16px;
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  color: #fff;
+}
+
+.finance-menu__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 14px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  color: #fff;
+  font-size: 14px;
+  text-align: left;
+  transition: color 0.15s;
+}
+
+.finance-menu__item svg {
+  transition: transform 0.15s;
+}
+
+.finance-menu__item:hover,
+.finance-menu__item:focus-visible {
+  color: #ff7b72;
+}
+
+.finance-menu__item:hover svg {
+  transform: translateX(3px);
+}
+
+.finance-menu__item--accent {
+  color: #ff7b72;
+  font-size: 13px;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-6px);
+  }
+}
+
+/* Кот-помощник внизу сайдбара */
+.sidebar-help {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: auto 0 14px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  color: #fff;
+  transition: background 0.15s;
+}
+
+.sidebar--collapsed .sidebar-help {
+  justify-content: center;
+}
+
+.sidebar-help:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-help__cat {
+  flex: none;
+  transform-origin: 50% 90%;
+  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.3));
+}
+
+.sidebar-help:hover .sidebar-help__cat {
+  animation: wiggle 0.7s ease-in-out;
+}
+
+@keyframes wiggle {
+  25% {
+    transform: rotate(-8deg);
+  }
+  60% {
+    transform: rotate(6deg);
+  }
+}
+
+.sidebar-help__text {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.sidebar-help__text small {
+  display: block;
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 400;
+  color: #a9b1b7;
+}
+
+.sidebar__footer {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 4px 0 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  font-size: 11px;
+  color: #a6afb8;
+}
+
+.sidebar--collapsed .sidebar__footer {
+  justify-content: center;
+  padding-left: 4px;
+}
+
+.demo-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fa4659;
+}
+
+.sidebar__logout {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-left: auto;
+  border-radius: 50%;
+  color: #a6afb8;
+}
+
+.sidebar--collapsed .sidebar__logout {
+  margin: 0;
+}
+
+.sidebar__logout:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
+
+/* ---------- Рабочая область ---------- */
+
+.workspace {
+  margin-left: var(--sidebar-w);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.2s ease;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+  padding: 0 32px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+}
+
+.topnav {
+  display: flex;
+  gap: 4px;
+}
+
+.topnav__link {
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  transition: color 0.15s, background 0.15s;
+}
+
+.topnav__link:hover {
+  color: var(--ink);
+  background: #f4f5f7;
+}
+
+.topnav__link.active {
+  color: var(--ink);
+  background: var(--red-soft);
+}
+
+.topbar__right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.topbar__divider {
+  width: 1px;
+  height: 28px;
+  background: var(--line);
+}
+
+.profile-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px 5px 5px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--ink-2);
+  transition: background 0.15s;
+}
+
+.profile-btn:hover,
+.profile-btn.active {
+  background: #f4f5f7;
+}
+
+.profile-btn__text small {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.content {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 20px 36px 52px;
+  overflow-x: clip;
+}
+
+.crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  margin-bottom: 18px;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.crumbs a {
+  display: flex;
+  align-items: center;
+}
+
+.crumbs a:hover {
+  color: var(--ink);
+}
+
+.crumbs__part {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.crumbs__current {
+  color: var(--ink-2);
+}
+
+.workspace-footer {
+  display: flex;
+  justify-content: space-between;
+  padding: 16px 36px;
+  border-top: 1px solid var(--line);
+  background: #fff;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.back-link:hover {
+  color: var(--ink);
+}
+
+/* Лента у заголовка */
+.page-ribbon {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 360px;
+  pointer-events: none;
+  opacity: 0.9;
+  z-index: 0;
+}
+
+.page-ribbon ~ * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Адаптив ---------- */
+
+@media (max-width: 1100px) {
+  .content {
+    padding: 18px 22px 40px;
+  }
+
+  .topbar {
+    padding: 0 22px;
+  }
+
+  .page-ribbon {
+    width: 260px;
+    opacity: 0.6;
+  }
+}
+
+@media (max-width: 760px) {
+  .app,
+  .app--collapsed {
+    --sidebar-w: 64px;
+  }
+
+  .sidebar {
+    padding: 16px 8px 12px;
+  }
+
+  .sidebar .logo__text,
+  .sidebar .nav-item__label,
+  .sidebar-help__text,
+  .sidebar-help > svg:last-child,
+  .sidebar__footer > :not(.sidebar__logout),
+  .sidebar__toggle {
+    display: none;
+  }
+
+  .sidebar__top {
+    margin: 0 0 24px;
+    justify-content: center;
+  }
+
+  .nav-item {
+    justify-content: center;
+    padding: 0;
+  }
+
+  .finance-menu {
+    width: 260px;
+  }
+
+  .topbar {
+    height: 60px;
+    padding: 0 12px;
+  }
+
+  .profile-btn__text,
+  .topbar__divider,
+  .topnav {
+    display: none;
+  }
+
+  .content {
+    padding: 14px 14px 32px;
+  }
+
+  .workspace-footer {
+    flex-direction: column;
+    gap: 4px;
+    padding: 14px;
+  }
+
+  .page-title {
+    font-size: 26px;
+  }
+
+  .page-ribbon {
+    display: none;
+  }
+}

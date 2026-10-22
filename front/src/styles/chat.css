@@ -1,0 +1,379 @@
+.help__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+  margin-top: 20px;
+}
+
+/* ---------- Чат ---------- */
+
+.chat {
+  display: flex;
+  flex-direction: column;
+  padding: 18px 18px 14px;
+}
+
+.chat__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.chat__who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat__who strong {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.chat__who span {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.online-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--st-issued-dot);
+}
+
+.segmented--tabs {
+  margin-top: 14px;
+  align-self: flex-start;
+}
+
+.chat__list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 460px;
+  margin-top: 6px;
+  padding: 14px 2px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.msg {
+  display: flex;
+  gap: 12px;
+  animation: msg-in 0.22s ease-out;
+}
+
+.msg--user {
+  justify-content: flex-end;
+  margin: 4px 0;
+}
+
+.msg__avatar {
+  flex: none;
+  width: 40px;
+}
+
+.msg__col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 560px;
+}
+
+.msg--bot .msg__col {
+  flex: 1;
+}
+
+.msg--user .msg__col {
+  align-items: flex-end;
+}
+
+/* Бабблы */
+.bubble {
+  padding: 10px 14px;
+  border-radius: 4px 14px 14px 14px;
+  background: #f2f3f5;
+  font-size: 14px;
+  line-height: 1.45;
+  white-space: pre-line;
+}
+
+.bubble__author {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--st-review-fg);
+}
+
+.bubble--user {
+  border-radius: 14px 4px 14px 14px;
+  background: #fdeceb;
+}
+
+.msg__time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 4px 0;
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.msg__read {
+  color: var(--red);
+}
+
+.msg-system {
+  align-self: center;
+  margin: 6px 0;
+  padding: 4px 12px;
+  border-radius: 12px;
+  background: #f2f3f5;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Быстрые вопросы — чипсы */
+.chips {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  width: min(520px, 100%);
+  margin: 10px 0 6px;
+}
+
+.chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 38px;
+  padding: 0 12px 0 14px;
+  border-radius: 9px;
+  border: 1px solid #f7dcd9;
+  background: #fdf1f0;
+  font-size: 13px;
+  text-align: left;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.chip svg {
+  flex: none;
+  color: var(--red);
+}
+
+.chip:hover {
+  background: #fbe5e3;
+  border-color: #f2c4bf;
+}
+
+.upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(360px, 100%);
+  height: 48px;
+  margin-top: 8px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  background: #fff;
+  font-size: 14px;
+  font-weight: 500;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.upload-btn svg {
+  color: var(--red);
+}
+
+.upload-btn:hover {
+  border-color: var(--red-line);
+  background: #fffafa;
+}
+
+.msg .doc-item {
+  width: min(360px, 100%);
+}
+
+.bubble--typing {
+  display: flex;
+  gap: 4px;
+  padding: 13px 14px;
+}
+
+.bubble--typing span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a6adba;
+  animation: typing 1s infinite ease-in-out;
+}
+
+.bubble--typing span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.bubble--typing span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing {
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-3px);
+    opacity: 1;
+  }
+}
+
+@keyframes msg-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+}
+
+/* Поле ввода */
+.composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+}
+
+.composer__attach {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 44px;
+  border-radius: 10px;
+  color: var(--muted);
+}
+
+.composer__attach:hover {
+  background: #f4f5f7;
+  color: var(--ink);
+}
+
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line-2);
+  outline: none;
+  font-size: 14px;
+}
+
+.composer__input:focus {
+  border-color: #a8afba;
+}
+
+.composer__send {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--red);
+  color: #fff;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.composer__send:hover:not(:disabled) {
+  background: var(--red-hover);
+}
+
+.composer__send:disabled {
+  opacity: 0.55;
+}
+
+/* ---------- Боковая карточка ---------- */
+
+.discuss {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.discuss .card-title {
+  width: 100%;
+  margin-bottom: 8px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+.discuss__num {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.discuss__product {
+  margin-bottom: 4px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.discuss__hint {
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.discuss__info {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+  color: var(--muted-2);
+}
+
+.discuss__info svg {
+  flex: none;
+}
+
+@media (max-width: 1100px) {
+  .help__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .discuss {
+    order: -1;
+  }
+}
+
+@media (max-width: 760px) {
+  .chat__head {
+    flex-wrap: wrap;
+  }
+
+  .chips {
+    grid-template-columns: 1fr;
+  }
+
+  .chat__list {
+    height: 380px;
+  }
+}
