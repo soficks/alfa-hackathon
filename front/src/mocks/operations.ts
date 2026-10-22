@@ -9,7 +9,9 @@ import type {
   HistoryEvent,
   PipelineStep,
   PipelineStepId,
+  Recommendation,
   Role,
+  Scoring,
   Terms,
   User,
   Wizard,
@@ -341,17 +343,52 @@ function applyPolicy(app: Application, at: Date): Application {
   return withEvent(ev, at, SYSTEM, 'queued', 'Заявка передана специалисту', { clientText: 'Заявку проверит специалист' });
 }
 
+/** Скоринг бэкенда в форме Scoring фронта (поля PTI в заявке не храним — PTI есть среди факторов) */
+function backendScoring(res: BackendDecision): Scoring | undefined {
+  if (!res.scoring) return undefined;
+  const { score, base, zone, factors, stopFactors, calculatedAt } = res.scoring;
+  return { score, base, zone, factors, stopFactors, calculatedAt };
+}
+
+/** Шаг «скоринг» по ответу бэкенда: балл и факторы считает его модель. */
+export function applyBackendScoring(app: Application, res: BackendDecision, at: Date): Application {
+  const scoring = backendScoring(res);
+  const next = completeStep({ ...app, scoring: scoring ?? app.scoring, checks: setCheck(app.checks, documentsCheck(app)) }, 'scoring', at);
+  const text = res.scoring ? `Скоринг бэкенда: ${res.scoring.score} баллов, PTI ${res.scoring.pti.toFixed(2)}` : 'Скоринг бэкенда: компания не найдена';
+  return withEvent(next, at, SYSTEM, 'scoring', text, { visibleToClient: false });
+}
+
+const backendRecommendation = (res: BackendDecision): Recommendation => {
+  const s = res.scoring ? `${res.scoring.score} баллов, PTI ${res.scoring.pti.toFixed(2)}` : 'нет скоринга';
+  switch (res.status) {
+    case 'APPROVED':
+      return { type: 'approve', text: `Бэкенд: одобрить (${s})`, manualReasons: [] };
+    case 'COUNTER_OFFER':
+      return { type: 'counter_offer', text: `Бэкенд: встречное предложение до ${rub(res.offers[0].amount)} (${s})`, amount: res.offers[0].amount, manualReasons: [] };
+    case 'NEED_INFO':
+      return { type: 'approve', text: `Бэкенд: обороты не подтверждены, нужна выписка (${s})`, manualReasons: res.reasonText ? [res.reasonText] : [] };
+    case 'REJECTED':
+      return { type: 'reject', text: `Бэкенд: отказ — ${rejectReason(res.reasonCode ?? undefined).title.toLowerCase()} (${s})`, manualReasons: [] };
+  }
+};
+
 /** Шаг «решение» по ответу конвейера бэкенда (вместо локальной кредитной логики). */
 export function applyBackendDecision(app: Application, res: BackendDecision, at: Date): Application {
   const done = completeStep(app, 'decision', at);
-  const base: Application = { ...done, pipeline: done.pipeline && { ...done.pipeline, owner: undefined } };
-  const pti = res.scoring ? `PTI ${res.scoring.pti.toFixed(2)}` : 'PTI не рассчитывался';
+  const base: Application = { ...done, recommendation: backendRecommendation(res), pipeline: done.pipeline && { ...done.pipeline, owner: undefined } };
+  const pti = res.scoring ? `${res.scoring.score} баллов, PTI ${res.scoring.pti.toFixed(2)}` : 'скоринг не рассчитывался';
   const justification = `Конвейер бэкенда: ${res.checks.map((c) => `${c.name} — ${c.details}`).join('; ')}`;
-  const termsOf = (t: { amount: number; term: number; rate: number }) => ({ ...app.requested, amount: t.amount, term: t.term, rate: t.rate });
+  const termsOf = (t: Pick<BackendDecision, 'amount' | 'term' | 'rate' | 'paymentType' | 'graceMonths'>): Terms => ({
+    amount: t.amount,
+    term: t.term,
+    rate: t.rate,
+    paymentType: t.paymentType,
+    graceMonths: t.paymentType === 'annuity_grace' ? t.graceMonths : undefined,
+  });
 
   switch (res.status) {
     case 'APPROVED': {
-      const next = moveTo({ ...base, recommendation: { type: 'approve', text: `Бэкенд: одобрено, ${pti}`, manualReasons: [] } }, 'APPROVED', at);
+      const next = moveTo(base, 'APPROVED', at);
       const withDecision: Application = {
         ...next,
         decision: {
@@ -371,11 +408,7 @@ export function applyBackendDecision(app: Application, res: BackendDecision, at:
     case 'COUNTER_OFFER': {
       const [offer, ...rest] = res.offers;
       const alternatives = rest.map((o) => `${rub(o.amount)} на ${months(o.term)}`).join(' или ');
-      const next = moveTo(
-        { ...base, recommendation: { type: 'counter_offer', text: `Бэкенд: встречное предложение, ${pti}`, amount: offer.amount, manualReasons: [] } },
-        'COUNTER_OFFER',
-        at,
-      );
+      const next = moveTo(base, 'COUNTER_OFFER', at);
       const withDecision: Application = {
         ...next,
         decision: {
@@ -399,11 +432,7 @@ export function applyBackendDecision(app: Application, res: BackendDecision, at:
 
     case 'NEED_INFO': {
       const comment = res.reasonText ?? 'Нужна выписка из другого банка, чтобы подтвердить выручку.';
-      const next = moveTo(
-        { ...base, recommendation: { type: 'approve', text: 'Бэкенд: обороты не подтверждены, запрошена выписка', manualReasons: [comment] } },
-        'NEED_INFO',
-        at,
-      );
+      const next = moveTo(base, 'NEED_INFO', at);
       const request = {
         id: uid('req'),
         docType: 'bank_statement' as const,
@@ -420,7 +449,7 @@ export function applyBackendDecision(app: Application, res: BackendDecision, at:
 
     case 'REJECTED': {
       const reason = rejectReason(res.reasonCode ?? undefined);
-      const next = moveTo({ ...base, recommendation: { type: 'reject', text: `Бэкенд: ${reason.title.toLowerCase()}`, manualReasons: [] } }, 'REJECTED', at);
+      const next = moveTo(base, 'REJECTED', at);
       const withDecision: Application = {
         ...next,
         decision: {
@@ -600,11 +629,15 @@ export function acknowledgeChanges(app: Application, employee: Actor, at: Date):
   return withEvent({ ...app, changedSinceReview: false }, at, employee, 'changes_ack', 'Сотрудник ознакомился с изменениями', { visibleToClient: false });
 }
 
-export function rescore(app: Application, at: Date, actor: Actor = SYSTEM): Application {
+/** Пересчёт скоринга: по ответу бэкенда, если он есть, иначе локальной моделью. */
+export function rescore(app: Application, at: Date, actor: Actor = SYSTEM, backend?: BackendDecision): Application {
   if (!app.financials) return app;
   const before = app.scoring?.score;
-  const scoring = score({ company: app.company, financials: app.financials, terms: app.requested, now: at });
-  const recommendation = recommend({ product: productOf(app), requested: app.requested, scoring, documents: app.documents, financials: app.financials });
+  const fromBackend = backend && backendScoring(backend);
+  const scoring = fromBackend ?? score({ company: app.company, financials: app.financials, terms: app.requested, now: at });
+  const recommendation = fromBackend
+    ? backendRecommendation(backend!)
+    : recommend({ product: productOf(app), requested: app.requested, scoring, documents: app.documents, financials: app.financials });
   return withEvent(
     { ...app, scoring, recommendation, checks: setCheck(app.checks, documentsCheck(app)) },
     at,

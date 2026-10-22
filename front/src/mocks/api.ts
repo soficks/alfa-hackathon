@@ -8,7 +8,7 @@ import { lookupCompany } from './registry.ts';
 import { bkiReport } from './bki.ts';
 import { botReply, greeting } from './bot.ts';
 import { tickPipelines } from './pipeline.ts';
-import { ensureDemoUsers } from './backend.ts';
+import { ensureDemoUsers, handledByBackend, requestDecision } from './backend.ts';
 
 /** Задержка «сети»: 300–800 мс */
 const wait = (min = 300, max = 800) => new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
@@ -319,10 +319,12 @@ export const mockApi: Api = {
     },
 
     async rescore(appId, employeeId) {
-      await wait(500, 800);
+      const app = appOf(db.getSnapshot(), appId);
+      // балл считает бэкенд; без него — локальная модель
+      const backend = handledByBackend(app) ? await requestDecision(app).catch(() => undefined) : (await wait(500, 800), undefined);
       return mutate(appId, employeeId, (a, u) => {
         requireAssignee(a, u);
-        return ops.rescore(a, new Date(), ops.actorOf(u));
+        return ops.rescore(a, new Date(), ops.actorOf(u), backend);
       });
     },
 

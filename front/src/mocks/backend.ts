@@ -1,4 +1,4 @@
-import type { Account, Application, DbState, User } from '../domain/types.ts';
+import type { Account, Application, DbState, PaymentType, Scoring, User } from '../domain/types.ts';
 import * as db from './db.ts';
 import { registerCompany, type RegistryRecord } from './registry.ts';
 import { registerBki, type BkiReport } from './bki.ts';
@@ -20,7 +20,7 @@ export interface BackendProfile {
   scenario: BackendScenario | null;
   registry: RegistryRecord;
   bki: BkiReport;
-  statement: { monthlyTurnover: number };
+  statement: { monthlyTurnover: number; change3m: number };
 }
 
 export interface BackendOffer {
@@ -29,7 +29,18 @@ export interface BackendOffer {
   amount: number;
   term: number;
   rate: number;
+  paymentType: PaymentType;
+  graceMonths: number;
   monthlyPayment: number;
+  pti: number;
+}
+
+/** Скоринг бэкенда: балльная модель в форме Scoring фронта плюс расчёт PTI */
+export interface BackendScoring extends Scoring {
+  confirmedTurnover: number;
+  debtServiceCapacity: number;
+  currentMonthlyPayments: number;
+  newMonthlyPayment: number;
   pti: number;
 }
 
@@ -41,7 +52,9 @@ export interface BackendDecision {
   amount: number;
   term: number;
   rate: number;
-  scoring: { confirmedTurnover: number; currentMonthlyPayments: number; newMonthlyPayment: number; pti: number } | null;
+  paymentType: PaymentType;
+  graceMonths: number;
+  scoring: BackendScoring | null;
   offers: BackendOffer[];
   checks: { stage: string; name: string; passed: boolean; details: string }[];
 }
@@ -50,6 +63,8 @@ let profiles: BackendProfile[] = [];
 
 export const isBackendOnline = () => profiles.length > 0;
 export const backendProfileOf = (inn?: string) => profiles.find((p) => p.inn === inn);
+/** Бэкенд знает только свои профили — остальные компании оценивает локальная модель */
+export const handledByBackend = (app: Application) => !!backendProfileOf(app.company.inn);
 
 async function http<T>(path: string, init?: RequestInit, timeoutMs = 5000): Promise<T> {
   const ctrl = new AbortController();
@@ -116,7 +131,7 @@ export async function connectBackend(): Promise<boolean> {
   for (const p of profiles) {
     registerCompany(p.registry);
     registerBki(p.bki);
-    registerStatement(p.inn, p.statement.monthlyTurnover);
+    registerStatement(p.inn, p.statement.monthlyTurnover, p.statement.change3m);
   }
   ensureDemoUsers();
   return true;
@@ -126,15 +141,18 @@ export async function connectBackend(): Promise<boolean> {
 export const hasExternalStatement = (app: Application) =>
   app.docRequests.some((r) => r.createdBy === SYSTEM.name && r.docType === 'bank_statement' && r.fulfilledByDocId);
 
-/** Прогнать заявку через конвейер бэкенда: Gatekeeper → Quality Check → Brain → Solver. */
+/** Прогнать заявку через конвейер бэкенда: Gatekeeper → Quality Check → Brain (балл, PTI) → Solver. */
 export function requestDecision(app: Application): Promise<BackendDecision> {
+  const { amount, term, paymentType, graceMonths } = app.requested;
   return http<BackendDecision>('/api/applications', {
     method: 'POST',
     body: JSON.stringify({
       inn: app.company.inn,
-      amount: app.requested.amount,
-      term: app.requested.term,
+      amount,
+      term,
       product: app.productId,
+      paymentType,
+      graceMonths: paymentType === 'annuity_grace' ? (graceMonths ?? 0) : 0,
       externalStatement: hasExternalStatement(app),
     }),
   });
