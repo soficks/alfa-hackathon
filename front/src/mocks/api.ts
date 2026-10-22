@@ -8,6 +8,7 @@ import { lookupCompany } from './registry.ts';
 import { bkiReport } from './bki.ts';
 import { botReply, greeting } from './bot.ts';
 import { tickPipelines } from './pipeline.ts';
+import { ensureDemoUsers } from './backend.ts';
 
 /** Задержка «сети»: 300–800 мс */
 const wait = (min = 300, max = 800) => new Promise((r) => setTimeout(r, min + Math.random() * (max - min)));
@@ -116,6 +117,7 @@ export const mockApi: Api = {
     async reset() {
       await wait();
       db.reset();
+      ensureDemoUsers();
     },
     startBackgroundJobs() {
       const timer = window.setInterval(() => tickPipelines(TAB_ID), 300);

@@ -85,6 +85,23 @@
   margin-top: -10px;
 }
 
+.login__demo-profiles {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.login__demo-profiles .muted {
+  margin-top: 0;
+}
+
+.login__demo-profiles .btn {
+  height: auto;
+  min-height: 44px;
+  padding-block: 10px;
+  white-space: normal;
+}
+
 @media (max-width: 1000px) {
   .login {
     grid-template-columns: 1fr;

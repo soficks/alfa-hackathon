@@ -34,6 +34,11 @@ const KNOWN: Record<string, BkiProfile> = {
   '7725123450': { loans: 2, totalDebt: 3_200_000, monthlyPayments: 190_000, overdueCurrent: true, overdueClosed12m: 1 },
 };
 
+/** Добавить или заменить кредитную историю (профили с бэкенда). */
+export function registerBki({ inn, ...profile }: BkiReport) {
+  KNOWN[inn] = profile;
+}
+
 export function bkiReport(inn: string): BkiReport {
   const known = KNOWN[inn];
   if (known) return { inn, ...known };

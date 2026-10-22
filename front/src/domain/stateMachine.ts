@@ -7,10 +7,12 @@ import type { AppStatus } from './types.ts';
 export const TRANSITIONS: Record<AppStatus, AppStatus[]> = {
   DRAFT: ['SUBMITTED'],
   SUBMITTED: ['AUTO_CHECKS'],
-  AUTO_CHECKS: ['APPROVED', 'REJECTED', 'IN_QUEUE'],
+  // COUNTER_OFFER и NEED_INFO — авто-решения конвейера бэкенда
+  AUTO_CHECKS: ['APPROVED', 'COUNTER_OFFER', 'NEED_INFO', 'REJECTED', 'IN_QUEUE'],
   IN_QUEUE: ['IN_REVIEW', 'AUTO_CHECKS', 'WITHDRAWN'],
   IN_REVIEW: ['NEED_INFO', 'APPROVED', 'COUNTER_OFFER', 'REJECTED', 'WITHDRAWN'],
-  NEED_INFO: ['IN_REVIEW', 'WITHDRAWN'],
+  // AUTO_CHECKS — клиент закрыл запрос системы, проверяем заново
+  NEED_INFO: ['IN_REVIEW', 'AUTO_CHECKS', 'WITHDRAWN'],
   APPROVED: ['SIGNING'],
   COUNTER_OFFER: ['SIGNING', 'DECLINED_BY_CLIENT'],
   SIGNING: ['ISSUED'],

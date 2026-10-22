@@ -7,7 +7,7 @@ import { intBetween, pick, rng } from './random.ts';
  * Мок ЕГРЮЛ/ЕГРИП. ИНН и ОГРН сгенерированы scripts/gen-requisites.ts и проходят контрольные суммы.
  * Срок работы задан в месяцах и отсчитывается от текущей даты.
  */
-interface RegistryRecord {
+export interface RegistryRecord {
   inn: string;
   ogrn: string;
   name: string;
@@ -262,6 +262,13 @@ function generate(inn: string, now: Date): Company {
     head,
   };
   return toCompany(record, now);
+}
+
+/** Добавить или заменить запись реестра (профили с бэкенда). */
+export function registerCompany(record: RegistryRecord) {
+  const i = KNOWN_COMPANIES.findIndex((c) => c.inn === record.inn);
+  if (i >= 0) KNOWN_COMPANIES[i] = record;
+  else KNOWN_COMPANIES.push(record);
 }
 
 /** Выписка из реестра. Невалидный ИНН — ошибка. */

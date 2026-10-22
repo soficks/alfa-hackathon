@@ -20,7 +20,7 @@ import { PAYMENT_TYPE_LABEL } from '../domain/finance.ts';
 import { addBusinessDays, addDays, monthsBetween } from '../domain/time.ts';
 import { openRequests } from '../domain/statusText.ts';
 import { DOC_TYPES } from '../config/docTypes.ts';
-import { MIN_BUSINESS_AGE_MONTHS, OFFER_VALID_DAYS, SLA_BUSINESS_DAYS, goalById, productById, type Product } from '../config/products.ts';
+import { DOC_REQUEST_DAYS, MIN_BUSINESS_AGE_MONTHS, OFFER_VALID_DAYS, SLA_BUSINESS_DAYS, goalById, productById, type Product } from '../config/products.ts';
 import { rejectReason } from '../config/rejectReasons.ts';
 import { businessAge, fullDate, months, rub } from '../utils/format.ts';
 import { lookupCompany } from './registry.ts';
@@ -28,6 +28,7 @@ import { bkiReport } from './bki.ts';
 import { analyzeStatement } from './statement.ts';
 import { score } from './scoring.ts';
 import { decide, missingDocs, recommend } from './creditPolicy.ts';
+import type { BackendDecision } from './backend.ts';
 
 /**
  * Операции над заявкой — чистые функции (app, …, at) → app.
@@ -340,6 +341,102 @@ function applyPolicy(app: Application, at: Date): Application {
   return withEvent(ev, at, SYSTEM, 'queued', 'Заявка передана специалисту', { clientText: 'Заявку проверит специалист' });
 }
 
+/** Шаг «решение» по ответу конвейера бэкенда (вместо локальной кредитной логики). */
+export function applyBackendDecision(app: Application, res: BackendDecision, at: Date): Application {
+  const done = completeStep(app, 'decision', at);
+  const base: Application = { ...done, pipeline: done.pipeline && { ...done.pipeline, owner: undefined } };
+  const pti = res.scoring ? `PTI ${res.scoring.pti.toFixed(2)}` : 'PTI не рассчитывался';
+  const justification = `Конвейер бэкенда: ${res.checks.map((c) => `${c.name} — ${c.details}`).join('; ')}`;
+  const termsOf = (t: { amount: number; term: number; rate: number }) => ({ ...app.requested, amount: t.amount, term: t.term, rate: t.rate });
+
+  switch (res.status) {
+    case 'APPROVED': {
+      const next = moveTo({ ...base, recommendation: { type: 'approve', text: `Бэкенд: одобрено, ${pti}`, manualReasons: [] } }, 'APPROVED', at);
+      const withDecision: Application = {
+        ...next,
+        decision: {
+          type: 'approve',
+          terms: termsOf(res),
+          justification,
+          clientMessage: 'Заявка одобрена автоматически. Проверьте условия и подтвердите их.',
+          decidedBy: 'system',
+          decidedAt: iso(at),
+          validUntil: iso(addDays(at, OFFER_VALID_DAYS)),
+        },
+      };
+      const ev = withEvent(withDecision, at, SYSTEM, 'auto_result', `Конвейер бэкенда: ${pti}, авто-одобрение`, { visibleToClient: false });
+      return withEvent(ev, at, SYSTEM, 'decision', 'Решение системы: одобрено', { clientText: 'Заявка одобрена' });
+    }
+
+    case 'COUNTER_OFFER': {
+      const [offer, ...rest] = res.offers;
+      const alternatives = rest.map((o) => `${rub(o.amount)} на ${months(o.term)}`).join(' или ');
+      const next = moveTo(
+        { ...base, recommendation: { type: 'counter_offer', text: `Бэкенд: встречное предложение, ${pti}`, amount: offer.amount, manualReasons: [] } },
+        'COUNTER_OFFER',
+        at,
+      );
+      const withDecision: Application = {
+        ...next,
+        decision: {
+          type: 'counter_offer',
+          terms: termsOf(offer),
+          justification: `${justification}; ${offer.title}: PTI ${offer.pti.toFixed(2)}`,
+          clientMessage:
+            `На запрошенных условиях платёж слишком нагружает обороты. Можем выдать ${rub(offer.amount)} на ${months(offer.term)} — ` +
+            `платёж ${rub(offer.monthlyPayment)} в месяц.` +
+            (alternatives ? ` Также доступно: ${alternatives} — напишите в чат, если удобнее этот вариант.` : ''),
+          decidedBy: 'system',
+          decidedAt: iso(at),
+          validUntil: iso(addDays(at, OFFER_VALID_DAYS)),
+        },
+      };
+      const ev = withEvent(withDecision, at, SYSTEM, 'auto_result', `Конвейер бэкенда: ${pti}, встречное предложение`, { visibleToClient: false });
+      return withEvent(ev, at, SYSTEM, 'decision', `Решение системы: встречное предложение (${describeTerms(termsOf(offer))})`, {
+        clientText: 'Банк предложил другие условия',
+      });
+    }
+
+    case 'NEED_INFO': {
+      const comment = res.reasonText ?? 'Нужна выписка из другого банка, чтобы подтвердить выручку.';
+      const next = moveTo(
+        { ...base, recommendation: { type: 'approve', text: 'Бэкенд: обороты не подтверждены, запрошена выписка', manualReasons: [comment] } },
+        'NEED_INFO',
+        at,
+      );
+      const request = {
+        id: uid('req'),
+        docType: 'bank_statement' as const,
+        comment,
+        dueAt: iso(addBusinessDays(at, DOC_REQUEST_DAYS)),
+        createdAt: iso(at),
+        createdBy: SYSTEM.name,
+        seenByClient: false,
+      };
+      return withEvent({ ...next, docRequests: [...next.docRequests, request] }, at, SYSTEM, 'docs_requested', 'Система запросила выписку из другого банка', {
+        clientText: 'Нужна выписка из другого банка',
+      });
+    }
+
+    case 'REJECTED': {
+      const reason = rejectReason(res.reasonCode ?? undefined);
+      const next = moveTo({ ...base, recommendation: { type: 'reject', text: `Бэкенд: ${reason.title.toLowerCase()}`, manualReasons: [] } }, 'REJECTED', at);
+      const withDecision: Application = {
+        ...next,
+        decision: {
+          type: 'reject',
+          reasonCode: reason.code,
+          justification: `${justification}${res.reasonText ? `. ${res.reasonText}` : ''}`,
+          clientMessage: reason.clientMessage,
+          decidedBy: 'system',
+          decidedAt: iso(at),
+        },
+      };
+      return withEvent(withDecision, at, SYSTEM, 'decision', `Авто-отказ: ${reason.title.toLowerCase()}`, { clientText: 'Решение: отказ' });
+    }
+  }
+}
+
 /** Прогнать все шаги сразу — для сида. */
 export function runPipelineSync(app: Application, at: Date): Application {
   let cur = app;
@@ -545,7 +642,10 @@ export function addDocuments(app: Application, client: Actor, files: Omit<DocFil
   const names = added.map((d) => DOC_TYPES[d.docType].title.toLowerCase()).join(', ');
   next = withEvent(next, at, client, 'client_docs', `Клиент загрузил: ${names}`, { clientText: `Вы загрузили: ${names}` });
 
-  if (next.status === 'NEED_INFO' && openRequests(next).length === 0) {
+  if (next.status === 'NEED_INFO' && openRequests(next).length === 0 && !next.assigneeId) {
+    // документы запрашивала система (специалиста нет) — проверяем заново автоматически
+    next = restartChecks(next, at, client, 'клиент загрузил запрошенные документы');
+  } else if (next.status === 'NEED_INFO' && openRequests(next).length === 0) {
     next = moveTo(next, 'IN_REVIEW', at);
     next = withEvent({ ...next, newDocsForEmployee: true }, at, client, 'client_answered', 'Клиент ответил на все запросы — заявка снова у специалиста', {
       clientText: 'Все запрошенные документы получены — заявка снова у специалиста',

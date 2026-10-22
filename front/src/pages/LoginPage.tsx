@@ -5,6 +5,14 @@ import { LogoMark } from '../components/Logo';
 import { HeroRibbons } from '../art/Ribbon';
 import type { Role } from '../domain/types';
 import { useDb, useSession } from '../store/data';
+import { backendProfileOf } from '../api';
+
+const SCENARIO_LABEL: Record<string, string> = {
+  APPROVED: 'одобрение',
+  COUNTER_OFFER: 'встречное предложение',
+  NEED_INFO: 'запрос выписки',
+  REJECTED: 'отказ',
+};
 
 const ROLES: { id: Role; label: string }[] = [
   { id: 'client', label: 'Я предприниматель' },
@@ -20,6 +28,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const demoUser = db.users.find((u) => u.role === role);
+  const backendClients = db.users.flatMap((user) => {
+    const profile = user.role === 'client' ? backendProfileOf(user.companyInn) : undefined;
+    return profile ? [{ user, profile }] : [];
+  });
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -126,6 +138,17 @@ export default function LoginPage() {
           <button type="button" className="btn btn--outline btn--lg btn--block" onClick={() => login(role)}>
             Демо-вход{demoUser ? `: ${demoUser.firstName} ${demoUser.lastName}, ${demoUser.position.toLowerCase()}` : ''}
           </button>
+
+          {role === 'client' && backendClients.length > 0 && (
+            <div className="login__demo-profiles">
+              <p className="muted">Демо-профили конвейера (бэкенд):</p>
+              {backendClients.map(({ user, profile }) => (
+                <button key={user.id} type="button" className="btn btn--outline btn--block" onClick={() => login('client', user.id)}>
+                  {profile.registry.name} — {SCENARIO_LABEL[profile.scenario ?? ''] ?? 'без сценария'}
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="notice">
             <Icon name="info" size={18} />

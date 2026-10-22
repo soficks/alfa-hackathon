@@ -36,6 +36,11 @@ const KNOWN: Record<string, Profile> = {
   '7725123450': { base: 1_400_000, change3m: -0.05 },
 };
 
+/** Добавить или заменить профиль оборотов (профили с бэкенда). */
+export function registerStatement(inn: string, base: number, change3m = 0) {
+  KNOWN[inn] = { base, change3m };
+}
+
 const round1000 = (n: number) => Math.round(n / 1000) * 1000;
 
 export function analyzeStatement(inn: string): StatementAnalysis {
