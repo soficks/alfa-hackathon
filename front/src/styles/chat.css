@@ -377,3 +377,41 @@
     height: 380px;
   }
 }
+
+/* ================= v3 ================= */
+
+.chips--bar {
+  display: flex;
+  flex-wrap: wrap;
+  width: 100%;
+  margin: 8px 0 4px;
+}
+
+.chips--bar .chip {
+  height: 32px;
+  font-size: 12px;
+  justify-content: center;
+}
+
+.chip:disabled {
+  opacity: 0.5;
+}
+
+.msg__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 6px;
+}
+
+.msg__upload {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.help .composer {
+  border-top: 0;
+  padding-top: 4px;
+}

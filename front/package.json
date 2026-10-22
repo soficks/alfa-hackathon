@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --test src/utils/finance.test.ts"
+    "test": "node --test src/domain/domain.test.ts src/mocks/mocks.test.ts"
   },
   "dependencies": {
     "@fontsource/inter": "5.1.0",

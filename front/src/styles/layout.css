@@ -36,22 +36,6 @@
   gap: 14px;
 }
 
-.sidebar__toggle {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border-radius: 7px;
-  color: #9ba5ad;
-  transition: background 0.15s, color 0.15s;
-}
-
-.sidebar__toggle:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-}
-
 .logo {
   display: flex;
   align-items: center;
@@ -480,8 +464,7 @@
   .sidebar .nav-item__label,
   .sidebar-help__text,
   .sidebar-help > svg:last-child,
-  .sidebar__footer > :not(.sidebar__logout),
-  .sidebar__toggle {
+  .sidebar__footer {
     display: none;
   }
 
@@ -527,4 +510,124 @@
   .page-ribbon {
     display: none;
   }
+}
+
+/* ================= v3: логотип-кнопка, счётчики ================= */
+
+.sidebar__top {
+  justify-content: flex-start;
+  gap: 12px;
+  margin: 0 0 34px 8px;
+}
+
+.sidebar--collapsed .sidebar__top {
+  flex-direction: row;
+  justify-content: center;
+  margin: 0 0 34px;
+}
+
+.logo__text {
+  color: #fff;
+}
+
+.logo__text:hover {
+  color: #ffd9d6;
+}
+
+/* Знак логотипа превращается в стрелку при наведении и фокусе */
+.logo-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+}
+
+.logo-toggle svg {
+  overflow: visible;
+}
+
+.logo-toggle__bars,
+.logo-toggle__arrow {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.logo-toggle__arrow {
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.logo-toggle.is-collapsed .logo-toggle__arrow {
+  transform: scale(0.6) scaleX(-1);
+}
+
+.logo-toggle:hover .logo-toggle__bars,
+.logo-toggle:focus-visible .logo-toggle__bars {
+  opacity: 0;
+  transform: scale(0.6);
+}
+
+.logo-toggle:hover .logo-toggle__arrow,
+.logo-toggle:focus-visible .logo-toggle__arrow {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.logo-toggle.is-collapsed:hover .logo-toggle__arrow,
+.logo-toggle.is-collapsed:focus-visible .logo-toggle__arrow {
+  transform: scaleX(-1);
+}
+
+.logo-toggle:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.45);
+}
+
+.nav-item__count {
+  min-width: 22px;
+  margin-left: auto;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.nav-item--active .nav-item__count {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.sidebar--collapsed .nav-item {
+  position: relative;
+}
+
+.sidebar--collapsed .nav-item__count {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  min-width: 16px;
+  padding: 0 4px;
+  font-size: 10px;
+  background: var(--red);
+}
+
+.sidebar__footer {
+  min-height: 32px;
+}
+
+.crumbs__sep {
+  color: var(--muted-2);
+}
+
+.crumbs__slash {
+  margin: 0 2px;
+  color: var(--muted-2);
+}
+
+.content {
+  padding-bottom: 96px;
 }

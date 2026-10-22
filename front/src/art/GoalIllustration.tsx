@@ -1,4 +1,4 @@
-import type { GoalId } from '../store/types';
+import type { Illustration } from '../config/products';
 import { RibbonGradient, ribbonPath } from './Ribbon';
 import { useSvgId } from './useSvgId';
 
@@ -133,7 +133,7 @@ function Growth({ id }: { id: string }) {
   );
 }
 
-export function GoalIllustration({ goal, className }: { goal: GoalId; className?: string }) {
+export function GoalIllustration({ goal, className }: { goal: Illustration; className?: string }) {
   const id = useSvgId();
   return (
     <svg viewBox="0 0 420 260" className={className} aria-hidden="true" preserveAspectRatio="xMidYMid slice">
