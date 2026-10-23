@@ -83,7 +83,7 @@ export function employeeNextStep(app: Application): NextStep {
   const codes = app.route?.allCodes ?? [];
   const hard = codes.find((c) => c.startsWith('H') || c === 'S01X');
   if (hard) return { title: `Жёсткий стоп ${hard} — подготовить отказ`, subtitle: app.route?.details[hard] ?? '' };
-  if (app.pendingDecision) return { title: 'Ждёт второго подтверждения', subtitle: app.pendingDecision.reason };
+  if (app.pendingDecision) return { title: 'Ждёт второго подтверждения', subtitle: `${app.pendingDecision.initiatorName}: ${app.pendingDecision.reason}` };
   const soft = codes.find((c) => c.startsWith('S'));
   if (soft) return { title: `Проверить мягкий стоп ${soft}`, subtitle: app.route?.details[soft] ?? '' };
   const trend = app.metrics?.trend;

@@ -16,7 +16,8 @@ import { monthsBetween } from '../../domain/time';
 import type { Application, CheckResult, DocFile } from '../../domain/types';
 import { useAction, useApplication, useUser, useUserName } from '../../store/data';
 import { businessAge, compactRub, dateTime, months, percent, ratio, rub } from '../../utils/format';
-import { RejectModal, RequestDocsModal, DecisionModal } from './modals';
+import { DecisionModal, RejectModal, RequestDocsModal, ReturnDecisionModal, WaiveModal } from './modals';
+import { ActionBar, type ActionModal } from './actions';
 import { mainPayment, missingDocTypes } from './derive';
 import { AssessmentCards, DecisionTraceTab, MoneyTab, RouteLine, ScoringTab } from './assessment';
 
@@ -37,9 +38,8 @@ export default function BankApplicationPage() {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const tab = (params.get('tab') as Tab) || 'overview';
-  const [modal, setModal] = useState<'request' | 'reject' | 'decision' | 'schedule' | null>(null);
+  const [modal, setModal] = useState<ActionModal | 'schedule' | null>(null);
   const [preview, setPreview] = useState<DocFile | null>(null);
-  const take = useAction();
   const ack = useAction();
 
   const mine = app?.assigneeId === user.id;
@@ -56,7 +56,6 @@ export default function BankApplicationPage() {
   const product = productById(app.productId);
   const goal = goalById(app.goalId);
   const final = isFinal(app.status);
-  const canDecide = mine && app.status === 'IN_REVIEW';
   const unread = unreadForEmployee(app);
   const [crumbLabel, crumbTo] = SECTION_LABEL[section];
   const setTab = (t: Tab) => setParams(t === 'overview' ? {} : { tab: t }, { replace: true, state: location.state });
@@ -82,11 +81,6 @@ export default function BankApplicationPage() {
           </div>
         </div>
         <div className="bank-card__assign">
-          {app.status === 'IN_QUEUE' && (
-            <button type="button" className="btn btn--outline btn--lg" disabled={take.pending} onClick={() => take.run(() => api.applications.takeToWork(app.id, user.id))}>
-              {take.pending ? 'Берём…' : 'Взять в работу'}
-            </button>
-          )}
           {mine && !final && app.assignedAt && (
             <span className="pill pill--ok">
               <Icon name="user" size={16} /> В работе у вас · взята {dateTime(app.assignedAt).toLowerCase()}
@@ -102,7 +96,6 @@ export default function BankApplicationPage() {
               <Icon name="lock" size={16} /> Заявка завершена — только просмотр
             </span>
           )}
-          {take.error && <p className="form-error">{take.error}</p>}
         </div>
       </div>
 
@@ -174,23 +167,13 @@ export default function BankApplicationPage() {
         </section>
       )}
 
-      <div className="action-bar">
-        <span className="action-bar__id">№ {app.id}</span>
-        {!canDecide && !final && <span className="action-bar__hint">{app.status === 'IN_QUEUE' ? 'Возьмите заявку в работу, чтобы принять решение' : mine ? 'Ждём клиента — решение будет доступно после ответа' : 'Решение принимает назначенный специалист'}</span>}
-        <button type="button" className="btn btn--outline" disabled={!canDecide} onClick={() => setModal('request')}>
-          Запросить документы
-        </button>
-        <button type="button" className="btn btn--outline" disabled={!canDecide} onClick={() => setModal('reject')}>
-          Отказать
-        </button>
-        <button type="button" className="btn btn--primary" disabled={!canDecide} onClick={() => setModal('decision')}>
-          Перейти к решению
-        </button>
-      </div>
+      <ActionBar app={app} onOpen={setModal} />
 
       {modal === 'request' && <RequestDocsModal app={app} onClose={() => setModal(null)} />}
       {modal === 'reject' && <RejectModal app={app} onClose={() => setModal(null)} />}
-      {modal === 'decision' && <DecisionModal app={app} onClose={() => setModal(null)} />}
+      {(modal === 'as_requested' || modal === 'other_terms' || modal === 'counter') && <DecisionModal app={app} variant={modal} onClose={() => setModal(null)} />}
+      {modal === 'waive' && <WaiveModal app={app} codes={(app.route?.allCodes ?? []).filter((c) => c.startsWith('S') && c !== 'S01X')} onClose={() => setModal(null)} />}
+      {modal === 'return' && <ReturnDecisionModal app={app} onClose={() => setModal(null)} />}
       {modal === 'schedule' && <ScheduleModal terms={app.decision?.terms ?? app.requested} onClose={() => setModal(null)} />}
       {preview && <DocPreview doc={preview} onClose={() => setPreview(null)} />}
     </div>

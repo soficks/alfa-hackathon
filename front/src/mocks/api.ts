@@ -324,8 +324,8 @@ export const mockApi: Api = {
       });
     },
 
-    preview(appId, terms) {
-      return ops.previewTerms(appOf(db.getSnapshot(), appId), terms);
+    preview(appId, terms, type) {
+      return ops.previewTerms(appOf(db.getSnapshot(), appId), terms, new Date(), type);
     },
 
     async waiveSoftStop(appId, employeeId, input) {

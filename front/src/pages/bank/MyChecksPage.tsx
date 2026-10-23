@@ -68,6 +68,8 @@ export default function MyChecksPage() {
     .filter((a) => a.status === 'IN_REVIEW')
     .sort((a, b) => Number(needsEmployeeAttention(b)) - Number(needsEmployeeAttention(a)) || sorter(sort)(a, b));
   const waiting = mine.filter((a) => a.status === 'NEED_INFO').sort(sorter(sort));
+  // решения коллег вопреки рекомендации — второе подтверждение даёт любой другой сотрудник
+  const confirm = db.applications.filter((a) => a.pendingDecision && a.pendingDecision.initiatorId !== user.id && searchMatch(a, q)).sort(sorter(sort));
 
   return (
     <div className="bank-page">
@@ -103,6 +105,18 @@ export default function MyChecksPage() {
               </tr>
             </thead>
             <tbody>
+              {confirm.length > 0 && (
+                <>
+                  <tr className="group-row">
+                    <th colSpan={5}>
+                      Ждут моего подтверждения <span className="tabs__count tabs__count--alert">{confirm.length}</span>
+                    </th>
+                  </tr>
+                  {confirm.map((a) => (
+                    <Row key={a.id} app={a} now={now} primary />
+                  ))}
+                </>
+              )}
               <tr className="group-row">
                 <th colSpan={5}>
                   Требуют моего действия <span className="tabs__count">{action.length}</span>

@@ -34,6 +34,7 @@ export interface TermsPreview {
   blockers: string[];
   /** расчётный лимит + 10% */
   maxAllowed: number;
+  secondApproval: string | null;
 }
 
 export interface WaiverInput {
@@ -97,7 +98,7 @@ export interface ApplicationsApi {
   rescore(appId: string, employeeId: string): Promise<Application>;
   clearNewDocs(appId: string, employeeId: string): Promise<void>;
   /** пересчёт метрик и запретов на других условиях — без сохранения (POST /simulate) */
-  preview(appId: string, terms: Terms): TermsPreview;
+  preview(appId: string, terms: Terms, type?: DecisionDraft['type']): TermsPreview;
   waiveSoftStop(appId: string, employeeId: string, input: WaiverInput): Promise<Application>;
   remind(appId: string, employeeId: string): Promise<Application>;
   /** второе подтверждение решения другим сотрудником */

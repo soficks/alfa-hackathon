@@ -607,10 +607,12 @@ export interface TermsPreview {
   blockers: string[];
   /** максимум суммы для сотрудника: расчётный лимит + 10% */
   maxAllowed: number;
+  /** почему решение такого типа уйдёт на второе подтверждение; null — не уйдёт */
+  secondApproval: string | null;
 }
 
 /** Расчёт для формы решения: метрики на выбранных условиях и запреты политики (§13). */
-export function previewTerms(app: Application, terms: Terms, at = new Date()): TermsPreview {
+export function previewTerms(app: Application, terms: Terms, at = new Date(), type: DecisionDraft['type'] = 'approve'): TermsPreview {
   const product = productOf(app);
   const metrics = computeMetrics(app.financials!, terms, product, at);
   const maxAllowed = Math.floor((metrics.manualLimit * (1 + POLICY.MANUAL_OVER_LIMIT)) / 50_000) * 50_000;
@@ -625,7 +627,7 @@ export function previewTerms(app: Application, terms: Terms, at = new Date()): T
   if (terms.amount > maxAllowed) blockers.push(`Сумма выше расчётного лимита ${rub(metrics.manualLimit)} + 10% (${rub(maxAllowed)})`);
   const soft = (app.route?.allCodes ?? []).filter((c) => codeInfo(c).level === 'S');
   if (soft.length) blockers.push(`Снимите мягкие стопы: ${soft.join(', ')}`);
-  return { metrics, blockers, maxAllowed };
+  return { metrics, blockers, maxAllowed, secondApproval: secondApprovalReason(app, { type }) };
 }
 
 /** Решение вопреки рекомендации модели требует второго подтверждения. */

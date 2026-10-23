@@ -20,6 +20,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const demoUser = db.users.find((u) => u.role === role);
+  const employees = db.users.filter((u) => u.role === 'employee');
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -123,9 +124,18 @@ export default function LoginPage() {
           <button type="submit" className="btn btn--primary btn--lg btn--block">
             Войти <Icon name="arrowRight" size={18} />
           </button>
-          <button type="button" className="btn btn--outline btn--lg btn--block" onClick={() => login(role)}>
-            Демо-вход{demoUser ? `: ${demoUser.firstName} ${demoUser.lastName}, ${demoUser.position.toLowerCase()}` : ''}
-          </button>
+          {role === 'employee' ? (
+            // два сотрудника: второе подтверждение решения даёт не тот, кто его принял
+            employees.map((u) => (
+              <button key={u.id} type="button" className="btn btn--outline btn--lg btn--block" onClick={() => login(role, u.id)}>
+                Демо-вход: {u.firstName} {u.lastName}, {u.position.toLowerCase()}
+              </button>
+            ))
+          ) : (
+            <button type="button" className="btn btn--outline btn--lg btn--block" onClick={() => login(role)}>
+              Демо-вход{demoUser ? `: ${demoUser.firstName} ${demoUser.lastName}, ${demoUser.position.toLowerCase()}` : ''}
+            </button>
+          )}
 
           <div className="notice">
             <Icon name="info" size={18} />

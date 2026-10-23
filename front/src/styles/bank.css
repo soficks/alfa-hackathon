@@ -1184,3 +1184,67 @@ aside.bank-grid__side {
   list-style: none;
   font-size: 13px;
 }
+
+/* Панель действий: кнопок может быть до шести — переносим строку */
+.action-bar {
+  flex-wrap: wrap;
+}
+
+.action-bar__id {
+  margin-right: auto;
+}
+
+.action-bar__btn {
+  display: inline-flex;
+}
+
+.action-bar__btn .btn:disabled {
+  pointer-events: none;
+}
+
+.btn--danger-text {
+  color: var(--st-rejected-fg);
+}
+
+/* Форма решения: метрики на выбранных условиях */
+.live-metric {
+  padding: 2px 8px;
+  border-radius: 6px;
+}
+
+.live-metric--ok {
+  background: var(--st-approved-bg);
+  color: var(--st-approved-fg);
+}
+
+.live-metric--warn {
+  background: var(--st-info-bg);
+  color: var(--st-info-fg);
+}
+
+.live-metric--fail {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+
+.live-metric strong {
+  color: inherit;
+}
+
+.alt-picks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0 12px;
+  font-size: 13px;
+}
+
+.blockers {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.conditions--compact {
+  margin-bottom: 12px;
+}
