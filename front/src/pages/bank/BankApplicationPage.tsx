@@ -9,7 +9,7 @@ import type { BankSection } from '../../components/Layout';
 import { api } from '../../api';
 import { DOC_TYPES } from '../../config/docTypes';
 import { goalById, productById, subgoalTitle } from '../../config/products';
-import { PAYMENT_TYPE_LABEL, calculateSchedule } from '../../domain/finance';
+import { PAYMENT_TYPE_LABEL } from '../../domain/finance';
 import { unreadForEmployee } from '../../domain/alerts';
 import { canMessage, isFinal } from '../../domain/stateMachine';
 import { monthsBetween } from '../../domain/time';
@@ -18,9 +18,9 @@ import { useAction, useApplication, useUser, useUserName } from '../../store/dat
 import { businessAge, compactRub, dateTime, months, percent, ratio, rub } from '../../utils/format';
 import { RejectModal, RequestDocsModal, DecisionModal } from './modals';
 import { mainPayment, missingDocTypes } from './derive';
-import { AssessmentCards, ScoringTab } from './assessment';
+import { AssessmentCards, DecisionTraceTab, MoneyTab, RouteLine, ScoringTab } from './assessment';
 
-type Tab = 'overview' | 'docs' | 'scoring' | 'messages' | 'history';
+type Tab = 'overview' | 'docs' | 'scoring' | 'money' | 'route' | 'messages' | 'history';
 
 const SECTION_LABEL: Record<BankSection, [string, string]> = {
   queue: ['Заявки', '/bank/queue'],
@@ -76,7 +76,10 @@ export default function BankApplicationPage() {
             ИНН {app.company.inn} · {product.name} · {goal.title}
             {app.subgoalId ? ` (${subgoalTitle(app.goalId, app.subgoalId)?.toLowerCase()})` : ''} · {PAYMENT_TYPE_LABEL[app.requested.paymentType].toLowerCase()} платёж
           </p>
-          <EmployeeStatusBadge app={app} size="lg" />
+          <div className="bank-card__status">
+            <EmployeeStatusBadge app={app} size="lg" />
+            <RouteLine route={app.route} />
+          </div>
         </div>
         <div className="bank-card__assign">
           {app.status === 'IN_QUEUE' && (
@@ -135,6 +138,8 @@ export default function BankApplicationPage() {
             ['overview', 'Обзор', undefined],
             ['docs', 'Документы', app.documents.length],
             ['scoring', 'Скоринг', undefined],
+            ['money', 'Деньги', undefined],
+            ['route', 'Как принято решение', undefined],
             ['messages', 'Сообщения', unread || undefined],
             ['history', 'История', app.history.length],
           ] as [Tab, string, number | undefined][]
@@ -150,6 +155,8 @@ export default function BankApplicationPage() {
       {tab === 'overview' && <Overview app={app} onTab={setTab} onPreview={setPreview} onSchedule={() => setModal('schedule')} />}
       {tab === 'docs' && <DocsTab app={app} onPreview={setPreview} />}
       {tab === 'scoring' && <ScoringTab app={app} canRescore={mine && !final} />}
+      {tab === 'money' && <MoneyTab app={app} />}
+      {tab === 'route' && <DecisionTraceTab app={app} />}
       {tab === 'messages' && (
         <section className="card">
           <h2 className="card-title">Переписка с клиентом</h2>
@@ -202,18 +209,11 @@ const CHANGE_LABEL: Record<string, string> = {
 
 /* ---------- Обзор ---------- */
 
-function ratioTone(value: number, ok: number, warn: number) {
-  return value <= ok ? 'ok' : value <= warn ? 'warn' : 'fail';
-}
-
 function Overview({ app, onTab, onPreview, onSchedule }: { app: Application; onTab: (t: Tab) => void; onPreview: (d: DocFile) => void; onSchedule: () => void }) {
   const f = app.financials;
   const t = app.requested;
-  const s = calculateSchedule(t);
   const pay = mainPayment(app);
   const age = monthsBetween(new Date(app.company.registeredAt), new Date());
-  const debtLoad = f && f.revenue12m ? (f.existingDebt + t.amount) / f.revenue12m : 0;
-  const payShare = f && f.avgTurnover3m ? s.maxPayment / f.avgTurnover3m : 0;
   const change = f && f.avgTurnover12m ? f.avgTurnover3m / f.avgTurnover12m - 1 : 0;
   const statement = app.documents.find((d) => d.docType === 'bank_statement');
 
@@ -297,18 +297,6 @@ function Overview({ app, onTab, onPreview, onSchedule }: { app: Application; onT
               </div>
             </div>
             <Sparkline values={f.turnoverByMonth} />
-            <div className="ratios">
-              <div className={`ratio ratio--${ratioTone(debtLoad, 0.3, 0.6)}`}>
-                <span>Долговая нагрузка</span>
-                <strong>{percent(debtLoad)}</strong>
-                <small>(обязательства + новый кредит) / выручка за 12 мес.</small>
-              </div>
-              <div className={`ratio ratio--${ratioTone(payShare, 0.2, 0.35)}`}>
-                <span>Платёж / оборот за 3 мес.</span>
-                <strong>{percent(payShare)}</strong>
-                <small>максимальный платёж {rub(s.maxPayment)}</small>
-              </div>
-            </div>
           </section>
         )}
 

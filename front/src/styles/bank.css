@@ -658,11 +658,11 @@ aside.bank-grid__side {
   transform: translateX(-50%);
 }
 
-.grade-scale__ticks span:first-child {
+.grade-scale__ticks span[data-edge='start'] {
   transform: none;
 }
 
-.grade-scale__ticks span:last-child {
+.grade-scale__ticks span[data-edge='end'] {
   transform: translateX(-100%);
 }
 
@@ -1055,4 +1055,132 @@ aside.bank-grid__side {
     text-align: left;
     flex-basis: 100%;
   }
+}
+
+/* Шапка карточки: статус + фраза маршрута + коды */
+.bank-card__status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+}
+
+.route-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.route-line__codes {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* Вкладка «Деньги» */
+.money__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.money__caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+
+.money__row.is-open .money__caret {
+  transform: rotate(90deg);
+}
+
+.money__formula td {
+  padding-top: 0;
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Вкладка «Как принято решение»: лестница шагов */
+.trace {
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.trace__step {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding-bottom: 16px;
+}
+
+.trace__step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  top: 28px;
+  bottom: 0;
+  left: 13px;
+  width: 2px;
+  background: var(--line);
+}
+
+.trace__mark {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.trace__step--pass .trace__mark {
+  background: var(--st-approved-bg);
+  color: var(--st-approved-fg);
+}
+
+.trace__step--fired .trace__mark {
+  background: var(--red);
+  color: #fff;
+}
+
+.trace__step--skipped {
+  color: var(--muted-2);
+}
+
+.trace__step--skipped .trace__mark {
+  border: 1px dashed var(--line-2);
+  color: var(--muted-2);
+}
+
+.trace__hint {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.trace__details {
+  margin: 4px 0 0;
+  font-size: 13px;
+}
+
+.trace__codes {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 13px;
 }
