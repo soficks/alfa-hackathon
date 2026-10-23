@@ -13,6 +13,8 @@ import { searchMatch } from './common';
 import { COURSE_EVENTS, DECISION_LABEL, afterDecision, decisionKind, finishedAt, type DecisionKind } from './derive';
 
 type Period = 'current' | 'previous' | 'all';
+/** чьи решения: мои или автоматические решения системы (авто-отказы D/E, H-стопы, авто-одобрения) */
+type Owner = 'mine' | 'system';
 
 const DECISIONS: { id: DecisionKind | 'all'; label: string }[] = [
   { id: 'all', label: 'все' },
@@ -50,10 +52,11 @@ export default function HistoryPage() {
   const [q, setQ] = useState('');
   const [period, setPeriod] = useState<Period>('current');
   const [kind, setKind] = useState<DecisionKind | 'all'>('all');
+  const [owner, setOwner] = useState<Owner>('mine');
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const list = db.applications
-    .filter((a) => isFinishedBy(a, user.id))
+    .filter((a) => (owner === 'mine' ? isFinishedBy(a, user.id) : !!a.decision && !a.decision.decidedById))
     .filter((a) => searchMatch(a, q))
     .filter((a) => inPeriod(finishedAt(a), period, now))
     .filter((a) => kind === 'all' || decisionKind(a) === kind)
@@ -70,6 +73,13 @@ export default function HistoryPage() {
         <label className="search">
           <Icon name="search" size={18} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Компания, ИНН или номер заявки" aria-label="Поиск по истории" />
+        </label>
+        <label className="select">
+          <span>Чьи:</span>
+          <select value={owner} onChange={(e) => setOwner(e.target.value as Owner)} aria-label="Чьи решения">
+            <option value="mine">мои решения</option>
+            <option value="system">решения системы</option>
+          </select>
         </label>
         <label className="select">
           <span>Период:</span>

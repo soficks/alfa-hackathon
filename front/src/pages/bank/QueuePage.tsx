@@ -9,6 +9,7 @@ import type { Application, Grade } from '../../domain/types';
 import { useAction, useDb, useNow, useUser, useUserName } from '../../store/data';
 import { dateTime, months, rub } from '../../utils/format';
 import { GRADE_OPTIONS, GradeChip, OpenLink, SlaCell, searchMatch } from './common';
+import { DscrCell, MainCodeCell } from './assessment';
 
 export default function QueuePage() {
   const user = useUser();
@@ -60,7 +61,7 @@ export default function QueuePage() {
           </select>
         </label>
         <label className="select">
-          <span>Скоринг:</span>
+          <span>Группа:</span>
           <select value={zone} onChange={(e) => setZone(e.target.value as Grade | 'all')} aria-label="Фильтр по группе риска">
             {GRADE_OPTIONS.map((z) => (
               <option key={z.id} value={z.id}>
@@ -80,15 +81,15 @@ export default function QueuePage() {
           </div>
         ) : (
           <div className="table-scroll">
-            <table className="data-table">
+            <table className="data-table data-table--queue">
               <thead>
                 <tr>
-                  <th>Компания</th>
-                  <th>Продукт</th>
+                  <th>Компания и продукт</th>
                   <th className="num">Сумма и срок</th>
-                  <th>Балл</th>
+                  <th>Группа</th>
+                  <th className="num">DSCR</th>
+                  <th>Код</th>
                   <th>Рекомендация системы</th>
-                  <th>Поступила</th>
                   <th>Срок проверки ↑</th>
                   <th />
                 </tr>
@@ -97,14 +98,10 @@ export default function QueuePage() {
                 {queue.map((a) => (
                   <tr key={a.id} className={isSlaOverdue(a, now) ? 'is-overdue' : ''}>
                     <td>
-                      <strong>{a.company.name}</strong>
-                      <span className="sub">
-                        № {a.id} · ИНН {a.company.inn}
+                      <strong title={`ИНН ${a.company.inn}`}>{a.company.name}</strong>
+                      <span className="sub" title={`${goalById(a.goalId).title}. Поступила ${a.submittedAt ? dateTime(a.submittedAt).toLowerCase() : '—'}`}>
+                        № {a.id} · {productById(a.productId).name.toLowerCase()}
                       </span>
-                    </td>
-                    <td>
-                      {productById(a.productId).name}
-                      <span className="sub">{goalById(a.goalId).title}</span>
                     </td>
                     <td className="num">
                       {rub(a.requested.amount)}
@@ -113,8 +110,13 @@ export default function QueuePage() {
                     <td>
                       <GradeChip app={a} />
                     </td>
+                    <td className="num">
+                      <DscrCell app={a} />
+                    </td>
+                    <td>
+                      <MainCodeCell app={a} />
+                    </td>
                     <td className="rec">{a.recommendation?.text ?? '—'}</td>
-                    <td>{a.submittedAt ? dateTime(a.submittedAt) : '—'}</td>
                     <td>
                       <SlaCell app={a} now={now} />
                     </td>

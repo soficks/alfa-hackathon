@@ -266,6 +266,27 @@ export function CodeChip({ code, detail }: { code: string; detail?: string }) {
   );
 }
 
+/* ---------- Ячейки таблиц очереди и «Моих проверок» ---------- */
+
+/** DSCR с цветом зоны */
+export function DscrCell({ app }: { app: Application }) {
+  const m = app.metrics;
+  if (!m) return <span className="muted">—</span>;
+  const zone = m.cfNegative ? 'fail' : dscrZone(m.dscr);
+  return (
+    <span className={`grade-chip grade-chip--${zone}`} title={`DSCR ${ratio(m.dscr)}, при стрессе ${ratio(m.dscrStress)}`}>
+      {m.cfNegative ? 'CF ≤ 0' : ratio(m.dscr)}
+    </span>
+  );
+}
+
+/** Основной код маршрута с подсказкой */
+export function MainCodeCell({ app }: { app: Application }) {
+  const r = app.route;
+  if (!r?.primaryCode) return <span className="muted">—</span>;
+  return <CodeChip code={r.primaryCode} detail={r.details[r.primaryCode]} />;
+}
+
 /** Шапка карточки: фраза маршрута и чипы всех кодов с подсказками */
 export function RouteLine({ route }: { route?: Route }) {
   if (!route) return null;

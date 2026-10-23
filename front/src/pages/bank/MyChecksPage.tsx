@@ -5,14 +5,16 @@ import { nearestDue, openRequests } from '../../domain/statusText';
 import type { Application } from '../../domain/types';
 import { useDb, useNow, useUser } from '../../store/data';
 import { rub } from '../../utils/format';
-import { AttentionBadges, GradeChip, OpenLink, SlaCell, employeeNextStep, needsEmployeeAttention, searchMatch } from './common';
+import type { Grade } from '../../domain/types';
+import { AttentionBadges, GRADE_OPTIONS, GradeChip, OpenLink, SlaCell, employeeNextStep, needsEmployeeAttention, searchMatch } from './common';
+import { DscrCell, MainCodeCell } from './assessment';
 
 type Sort = 'deadline' | 'amount' | 'score';
 
 const SORTS: { id: Sort; label: string }[] = [
   { id: 'deadline', label: 'Сначала ближайший срок' },
   { id: 'amount', label: 'Сначала большая сумма' },
-  { id: 'score', label: 'Сначала низкий балл' },
+  { id: 'score', label: 'Сначала низкий балл скоринга' },
 ];
 
 const deadlineOf = (a: Application) => (a.status === 'NEED_INFO' ? nearestDue(openRequests(a)) : a.slaDueAt) ?? '';
@@ -46,6 +48,12 @@ function Row({ app, now, primary }: { app: Application; now: Date; primary: bool
       <td>
         <GradeChip app={app} />
       </td>
+      <td className="num">
+        <DscrCell app={app} />
+      </td>
+      <td>
+        <MainCodeCell app={app} />
+      </td>
       <td>
         <SlaCell app={app} now={now} />
       </td>
@@ -62,14 +70,16 @@ export default function MyChecksPage() {
   const now = useNow();
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<Sort>('deadline');
-  const mine = db.applications.filter((a) => a.assigneeId === user.id && searchMatch(a, q));
+  const [grade, setGrade] = useState<Grade | 'all'>('all');
+  const byGrade = (a: Application) => grade === 'all' || a.scoring?.grade === grade;
+  const mine = db.applications.filter((a) => a.assigneeId === user.id && searchMatch(a, q) && byGrade(a));
   // строки с новыми документами, сообщениями или изменениями — наверх группы
   const action = mine
     .filter((a) => a.status === 'IN_REVIEW')
     .sort((a, b) => Number(needsEmployeeAttention(b)) - Number(needsEmployeeAttention(a)) || sorter(sort)(a, b));
   const waiting = mine.filter((a) => a.status === 'NEED_INFO').sort(sorter(sort));
   // решения коллег вопреки рекомендации — второе подтверждение даёт любой другой сотрудник
-  const confirm = db.applications.filter((a) => a.pendingDecision && a.pendingDecision.initiatorId !== user.id && searchMatch(a, q)).sort(sorter(sort));
+  const confirm = db.applications.filter((a) => a.pendingDecision && a.pendingDecision.initiatorId !== user.id && searchMatch(a, q) && byGrade(a)).sort(sorter(sort));
 
   return (
     <div className="bank-page">
@@ -80,6 +90,16 @@ export default function MyChecksPage() {
         <label className="search">
           <Icon name="search" size={18} />
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Компания, ИНН или номер заявки" aria-label="Поиск по моим проверкам" />
+        </label>
+        <label className="select">
+          <span>Группа:</span>
+          <select value={grade} onChange={(e) => setGrade(e.target.value as Grade | 'all')} aria-label="Фильтр по группе риска">
+            {GRADE_OPTIONS.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.label}
+              </option>
+            ))}
+          </select>
         </label>
         <label className="select select--plain">
           <select value={sort} onChange={(e) => setSort(e.target.value as Sort)} aria-label="Сортировка">
@@ -99,7 +119,9 @@ export default function MyChecksPage() {
               <tr>
                 <th>Заявка</th>
                 <th>Следующий шаг</th>
-                <th>Балл</th>
+                <th>Группа</th>
+                <th className="num">DSCR</th>
+                <th>Код</th>
                 <th>Срок проверки</th>
                 <th />
               </tr>
@@ -108,7 +130,7 @@ export default function MyChecksPage() {
               {confirm.length > 0 && (
                 <>
                   <tr className="group-row">
-                    <th colSpan={5}>
+                    <th colSpan={7}>
                       Ждут моего подтверждения <span className="tabs__count tabs__count--alert">{confirm.length}</span>
                     </th>
                   </tr>
@@ -118,13 +140,13 @@ export default function MyChecksPage() {
                 </>
               )}
               <tr className="group-row">
-                <th colSpan={5}>
+                <th colSpan={7}>
                   Требуют моего действия <span className="tabs__count">{action.length}</span>
                 </th>
               </tr>
               {action.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted empty-row">
+                  <td colSpan={7} className="muted empty-row">
                     Нет заявок, где нужно ваше действие. Возьмите новую в разделе «Заявки».
                   </td>
                 </tr>
@@ -133,13 +155,13 @@ export default function MyChecksPage() {
                 <Row key={a.id} app={a} now={now} primary />
               ))}
               <tr className="group-row">
-                <th colSpan={5}>
+                <th colSpan={7}>
                   Ожидаю ответа клиента <span className="tabs__count">{waiting.length}</span>
                 </th>
               </tr>
               {waiting.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="muted empty-row">
+                  <td colSpan={7} className="muted empty-row">
                     Вы ничего не запрашивали у клиентов.
                   </td>
                 </tr>

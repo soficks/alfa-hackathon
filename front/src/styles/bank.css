@@ -1248,3 +1248,16 @@ aside.bank-grid__side {
 .conditions--compact {
   margin-bottom: 12px;
 }
+
+/* Очередь: десять колонок — не даём имени компании и кнопкам сжиматься */
+.data-table--queue td:first-child {
+  min-width: 160px;
+}
+
+.data-table--queue .actions .btn {
+  white-space: nowrap;
+}
+
+.data-table--queue .rec {
+  font-size: 13px;
+}
