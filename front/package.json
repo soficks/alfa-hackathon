@@ -1,13 +1,13 @@
 {
   "name": "business-cabinet-front",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node --test src/domain/domain.test.ts src/mocks/mocks.test.ts"
+    "test": "node --test src/domain/domain.test.ts"
   },
   "dependencies": {
     "@fontsource/inter": "5.1.0",

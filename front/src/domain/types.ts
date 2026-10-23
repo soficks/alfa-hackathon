@@ -131,6 +131,31 @@ export interface Scoring {
   factors: ScoringFactor[];
   stopFactors: StopFactor[];
   calculatedAt: string;
+  /** версия правил, по которой считали; пересчёты заявки идут по той же версии */
+  modelVersion?: string;
+  /** показатель долговой нагрузки (PTI) и его слагаемые — считает сервер */
+  pti?: number;
+  confirmedTurnover?: number;
+  debtServiceCapacity?: number;
+  currentMonthlyPayments?: number;
+  newMonthlyPayment?: number;
+}
+
+/** Строка истории расчётов скоринга: что и по каким условиям пересчитывали */
+export interface ScoringRun {
+  id: string;
+  calculatedAt: string;
+  /** checks — авто-проверки, client_changed — клиент поменял условия, documents — загрузил документы, employee — пересчёт сотрудником */
+  trigger: 'checks' | 'client_changed' | 'documents' | 'employee';
+  modelVersion: string;
+  score: number;
+  pti: number | null;
+  zone: ScoreZone;
+  outcome: string;
+  amount: number;
+  term: number;
+  paymentType: PaymentType;
+  rate: number;
 }
 
 export interface Financials {
@@ -152,6 +177,8 @@ export interface Decision {
   type: 'approve' | 'counter_offer' | 'reject';
   terms?: Terms;
   reasonCode?: string;
+  /** варианты автоматического встречного предложения (первый — основной) */
+  offers?: { id: string; title: string; amount: number; term: number; rate: number; paymentType: PaymentType; graceMonths: number; monthlyPayment: number; pti: number }[];
   /** внутреннее, видит только банк */
   justification: string;
   /** видит клиент */
@@ -246,6 +273,17 @@ export interface Application {
   signedAt?: string;
   declineReason?: string;
   issued?: { accountNumber: string; issuedAt: string };
+  /** версия правил скоринга, фиксируется при создании заявки */
+  modelVersion?: string;
+  /** все расчёты скоринга по заявке, от первого к последнему */
+  scoringHistory?: ScoringRun[];
+  /** поля записи заявки на сервере */
+  applicationId?: string;
+  clientId?: string;
+  companyInn?: string;
+  assignedEmployeeId?: string;
+  requestedTerms?: { productId: string; amount: number; term: number };
+  scoringResult?: { score: number; pti: number | null; modelVersion: string };
 }
 
 export interface User {

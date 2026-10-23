@@ -14,7 +14,7 @@ import { unreadForEmployee } from '../../domain/alerts';
 import { canMessage, isFinal } from '../../domain/stateMachine';
 import { zoneLabel } from '../../domain/statusText';
 import { monthsBetween } from '../../domain/time';
-import type { Application, CheckResult, DocFile, Scoring } from '../../domain/types';
+import type { Application, CheckResult, DocFile, Scoring, ScoringRun } from '../../domain/types';
 import { useAction, useApplication, useUser, useUserName } from '../../store/data';
 import { businessAge, compactRub, dateTime, months, percent, rub, time } from '../../utils/format';
 import { RejectModal, RequestDocsModal, DecisionModal } from './modals';
@@ -549,7 +549,58 @@ function ScoringTab({ app, canRescore }: { app: Application; canRescore: boolean
         Стоп-факторы: {s.stopFactors.length ? s.stopFactors.map((x) => x.text).join('; ') : 'нет'}. Рассчитан {dateTime(s.calculatedAt)}.
         {stale && ' Данные заявки менялись после расчёта.'}
       </p>
+      {s.pti !== undefined && (
+        <p className="micro">
+          PTI {s.pti.toFixed(2)} · платёж по заявке {rub(s.newMonthlyPayment ?? 0)} в месяц, текущие платежи {rub(s.currentMonthlyPayments ?? 0)} · правила скоринга {s.modelVersion ?? 'demo-v1'}
+        </p>
+      )}
       {error && <p className="form-error">{error}</p>}
+      <ScoringRuns runs={app.scoringHistory ?? []} />
     </section>
+  );
+}
+
+const RUN_TRIGGER: Record<ScoringRun['trigger'], string> = {
+  checks: 'Авто-проверки',
+  client_changed: 'Клиент изменил условия',
+  documents: 'Клиент загрузил документы',
+  employee: 'Пересчёт сотрудником',
+};
+
+/** Все расчёты по заявке: клиент поменял условия или документы — новый балл дописывается сюда, по той же версии правил. */
+function ScoringRuns({ runs }: { runs: ScoringRun[] }) {
+  if (runs.length < 2) return null;
+  return (
+    <>
+      <h3 className="form-label">История расчётов</h3>
+      <div className="table-scroll">
+        <table className="data-table">
+          <thead>
+            <tr>
+              <th>Когда</th>
+              <th>Причина</th>
+              <th>Условия</th>
+              <th className="num">Балл</th>
+              <th className="num">PTI</th>
+              <th>Правила</th>
+            </tr>
+          </thead>
+          <tbody>
+            {[...runs].reverse().map((r) => (
+              <tr key={r.id}>
+                <td>{dateTime(r.calculatedAt)}</td>
+                <td>{RUN_TRIGGER[r.trigger] ?? r.trigger}</td>
+                <td>
+                  {rub(r.amount)} на {months(r.term)}, {PAYMENT_TYPE_LABEL[r.paymentType].toLowerCase()}
+                </td>
+                <td className="num">{r.score}</td>
+                <td className="num">{r.pti === null ? '—' : r.pti.toFixed(2)}</td>
+                <td>{r.modelVersion}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }

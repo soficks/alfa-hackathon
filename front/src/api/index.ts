@@ -1,9 +1,6 @@
 /**
- * Точка входа в «серверную» часть. Сейчас — мок поверх localStorage.
- * Для настоящего backend достаточно экспортировать здесь HTTP-реализацию Api.
+ * Точка входа в «серверную» часть: HTTP-клиент FastAPI-бэкенда (backend/main.py).
+ * Адрес задаётся VITE_API_URL, по умолчанию http://localhost:8000.
  */
-import { mockApi } from '../mocks/api';
-
-export const api = mockApi;
-export { connectBackend, backendProfileOf, isBackendOnline, BACKEND_URL } from '../mocks/backend';
+export { api, backendProfileOf, BACKEND_URL } from './server';
 export type * from './contracts';

@@ -46,6 +46,7 @@ function readSession(): string | null {
 }
 
 function writeSession(userId: string | null) {
+  api.store.setActor(userId);
   try {
     if (userId) sessionStorage.setItem(SESSION_KEY, JSON.stringify({ userId }));
     else sessionStorage.removeItem(SESSION_KEY);
@@ -64,7 +65,9 @@ function initialUserId(): string | null {
     writeSession(id);
     return id;
   }
-  return readSession();
+  const saved = readSession();
+  api.store.setActor(saved);
+  return saved;
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -112,12 +115,12 @@ export function useAction() {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const alive = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    alive.current = true; // StrictMode в dev монтирует эффект дважды — без этого флаг остаётся false и кнопки зависают
+    return () => {
       alive.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   const run = useCallback(async <T,>(fn: () => Promise<T>): Promise<T | undefined> => {
     setPending(true);

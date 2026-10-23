@@ -1527,3 +1527,17 @@ select.input {
 .conditions > div:last-child {
   padding-right: 22px;
 }
+
+.server-down {
+  max-width: 480px;
+  margin: 20vh auto 0;
+  padding: 0 16px;
+  text-align: center;
+}
+.server-down h1 {
+  margin: 0 0 8px;
+}
+.server-down p {
+  margin: 0 0 20px;
+  color: var(--text-muted, #6b7280);
+}

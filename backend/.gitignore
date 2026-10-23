@@ -1,3 +1,7 @@
 venv/
 __pycache__/
 *.pyc
+.pytest_cache/
+# локальная БД SQLite создаётся при первом запуске
+data/
+*.db
