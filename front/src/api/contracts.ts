@@ -3,9 +3,12 @@ import type {
   BotMessage,
   Company,
   DbState,
+  DecisionDraft,
   DocFile,
   DocType,
   Financials,
+  Metrics,
+  OverdueCategory,
   Terms,
   Wizard,
 } from '../domain/types';
@@ -22,12 +25,22 @@ export interface RequestItem {
   comment: string;
 }
 
-export interface DecisionInput {
-  type: 'approve' | 'counter_offer';
-  terms: Terms;
-  validDays: number;
-  justification: string;
-  clientMessage: string;
+/** Решение сотрудника: тип, вариант, условия, код причины, обоснование */
+export type DecisionInput = DecisionDraft;
+
+/** Расчёт для формы решения: метрики на выбранных условиях и запреты политики */
+export interface TermsPreview {
+  metrics: Metrics;
+  blockers: string[];
+  /** расчётный лимит + 10% */
+  maxAllowed: number;
+}
+
+export interface WaiverInput {
+  code: string;
+  reasonCode: string;
+  evidence: string;
+  comment: string;
 }
 
 export interface RejectInput {
@@ -83,6 +96,13 @@ export interface ApplicationsApi {
   acknowledgeChanges(appId: string, employeeId: string): Promise<Application>;
   rescore(appId: string, employeeId: string): Promise<Application>;
   clearNewDocs(appId: string, employeeId: string): Promise<void>;
+  /** пересчёт метрик и запретов на других условиях — без сохранения (POST /simulate) */
+  preview(appId: string, terms: Terms): TermsPreview;
+  waiveSoftStop(appId: string, employeeId: string, input: WaiverInput): Promise<Application>;
+  remind(appId: string, employeeId: string): Promise<Application>;
+  /** второе подтверждение решения другим сотрудником */
+  confirmDecision(appId: string, employeeId: string): Promise<Application>;
+  returnDecision(appId: string, employeeId: string, comment: string): Promise<Application>;
 }
 
 export interface RegistryApi {
@@ -94,8 +114,10 @@ export interface BkiReport {
   loans: number;
   totalDebt: number;
   monthlyPayments: number;
-  overdueCurrent: boolean;
-  overdueClosed12m: number;
+  currentOverdueDays: number;
+  worstClosed24m: OverdueCategory;
+  hasHistory: boolean;
+  director: { hasHistory: boolean; worstClosed24m: OverdueCategory; currentOverdueDays: number };
 }
 
 export interface BkiApi {

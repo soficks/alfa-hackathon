@@ -2,25 +2,39 @@ import { Link } from 'react-router-dom';
 import { DOC_TYPES } from '../../config/docTypes';
 import { missingDocTypes } from './derive';
 import { unreadForEmployee, isSlaOverdue } from '../../domain/alerts';
-import { nearestDue, openRequests, zoneLabel } from '../../domain/statusText';
-import type { Application, ScoreZone } from '../../domain/types';
+import { nearestDue, openRequests } from '../../domain/statusText';
+import type { Application, Grade } from '../../domain/types';
 import { dateTime } from '../../utils/format';
 
-export function ScoreChip({ app }: { app: Application }) {
+/** Цвет зоны группы риска: A–B зелёная, C жёлтая, D–E красная */
+export const gradeTone = (g: Grade) => (g === 'A' || g === 'B' ? 'ok' : g === 'C' ? 'warn' : 'fail');
+
+export const GRADE_RANGE: Record<Grade, string> = {
+  A: '640 и выше',
+  B: '610–639',
+  C: '580–609',
+  D: '550–579',
+  E: 'меньше 550',
+};
+
+/** Буква группы с баллом: «B · 612» */
+export function GradeChip({ app }: { app: Application }) {
   if (!app.scoring) return <span className="muted">—</span>;
-  const { score, zone } = app.scoring;
+  const { score, grade } = app.scoring;
   return (
-    <span className={`score-chip score-chip--${zone}`} title={zoneLabel[zone]}>
-      {score}
+    <span className={`grade-chip grade-chip--${gradeTone(grade)}`} title={`Группа ${grade}: ${GRADE_RANGE[grade]}, балл ${score} из 660`}>
+      <b>{grade}</b> {score}
     </span>
   );
 }
 
-export const ZONE_OPTIONS: { id: ScoreZone | 'all'; label: string }[] = [
-  { id: 'all', label: 'Все зоны' },
-  { id: 'auto', label: '700+ · авто-одобрение' },
-  { id: 'manual', label: '400–699 · ручная проверка' },
-  { id: 'high_risk', label: '0–399 · высокий риск' },
+export const GRADE_OPTIONS: { id: Grade | 'all'; label: string }[] = [
+  { id: 'all', label: 'все группы' },
+  { id: 'A', label: 'A · 640+' },
+  { id: 'B', label: 'B · 610–639' },
+  { id: 'C', label: 'C · 580–609' },
+  { id: 'D', label: 'D · 550–579' },
+  { id: 'E', label: 'E · < 550' },
 ];
 
 export function SlaCell({ app, now }: { app: Application; now: Date }) {
@@ -66,9 +80,15 @@ export function employeeNextStep(app: Application): NextStep {
     const msg = [...app.messages].reverse().find((m) => m.author === 'client');
     return { title: 'Ответить клиенту', subtitle: msg?.text ?? '' };
   }
-  const dynamics = app.scoring?.factors.find((f) => f.id === 'turnover_dynamics');
-  if (dynamics && dynamics.points < 0) {
-    return { title: 'Проверить источники погашения', subtitle: dynamics.explanation };
+  const codes = app.route?.allCodes ?? [];
+  const hard = codes.find((c) => c.startsWith('H') || c === 'S01X');
+  if (hard) return { title: `Жёсткий стоп ${hard} — подготовить отказ`, subtitle: app.route?.details[hard] ?? '' };
+  if (app.pendingDecision) return { title: 'Ждёт второго подтверждения', subtitle: app.pendingDecision.reason };
+  const soft = codes.find((c) => c.startsWith('S'));
+  if (soft) return { title: `Проверить мягкий стоп ${soft}`, subtitle: app.route?.details[soft] ?? '' };
+  const trend = app.metrics?.trend;
+  if (trend !== null && trend !== undefined && trend < 0.9) {
+    return { title: 'Проверить источники погашения', subtitle: `Тренд выручки ${trend.toFixed(2).replace('.', ',')}: обороты последних 3 мес. ниже предыдущих` };
   }
   const missing = missingDocTypes(app);
   if (missing.length) {

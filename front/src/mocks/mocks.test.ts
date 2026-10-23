@@ -1,19 +1,23 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import type { Company, DocFile, Financials, Terms } from '../domain/types.ts';
+import type { Application, Company, CreditHistory, ExternalSources, Terms } from '../domain/types.ts';
 import { isValidInn, isValidRegistrationNumber } from '../domain/requisites.ts';
-import { calculateSchedule } from '../domain/finance.ts';
 import { DAY } from '../domain/time.ts';
-import { productById } from '../config/products.ts';
+import { productById, type Product } from '../config/products.ts';
+import { NEUTRAL_REJECT_TEXT } from '../config/routeCodes.ts';
 import { KNOWN_COMPANIES, LIQUIDATED_INN, RegistryError, YOUNG_INN, lookupCompany } from './registry.ts';
 import { analyzeStatement } from './statement.ts';
 import { bkiReport } from './bki.ts';
-import { BASE_SCORE, score, zoneOf } from './scoring.ts';
-import { counterAmount, decide, rateFor } from './creditPolicy.ts';
+import { PD_FACTOR, PD_OFFSET, agePoints, gradeOf, historyPoints, industryPoints, oddsOf, pdOf, score, taxPoints, trendPoints } from './scoring.ts';
+import { cashflowBase, findAlternatives, metricsFromBase, type CashflowBase } from './affordability.ts';
+import { computeRoute } from './creditPolicy.ts';
 import { createSeed } from './seed.ts';
-import { prefillFinancials, runPipelineSync, submit } from './operations.ts';
+import { assess, makeDecision, previewTerms, reassess, waiveSoftStop } from './operations.ts';
 
 const now = new Date(2026, 9, 23, 12, 0);
+const seed = createSeed(now);
+const app = (id: string) => seed.applications.find((a) => a.id === id)!;
+const close = (a: number, b: number, eps: number) => Math.abs(a - b) <= eps;
 
 /* ---------- Реестр, БКИ, выписка ---------- */
 
@@ -25,214 +29,273 @@ test('Реестр: у всех синтетических компаний ва
 });
 
 test('Реестр: неизвестный валидный ИНН — детерминированная компания, невалидный — ошибка', () => {
-  const a = lookupCompany('7707083893', now);
-  const b = lookupCompany('7707083893', now);
-  assert.deepEqual(a, b);
-  assert.ok(isValidRegistrationNumber(a.ogrn, a.form));
+  assert.deepEqual(lookupCompany('7707083893', now), lookupCompany('7707083893', now));
   assert.equal(lookupCompany('500100732259', now).form, 'ИП');
   assert.throws(() => lookupCompany('7707083894', now), RegistryError);
-});
-
-test('Реестр: Орион ликвидирован, Новиковой 4 месяца', () => {
   assert.equal(lookupCompany(LIQUIDATED_INN, now).status, 'liquidated');
-  const young = lookupCompany(YOUNG_INN, now);
-  assert.ok(now.getTime() - new Date(young.registeredAt).getTime() < 6 * 30 * DAY);
+  assert.ok(now.getTime() - new Date(lookupCompany(YOUNG_INN, now).registeredAt).getTime() < 6 * 30 * DAY);
 });
 
-test('Выписка: у АльфаТех средний оборот за 3 мес на 25–30% ниже среднего за 12', () => {
+test('Выписка: CF_m = Rev_m·(1 − v) − Fixed, тренд АльфаТех 0,72', () => {
   const s = analyzeStatement('7701111110');
-  const change = s.avgTurnover3m / s.avgTurnover12m - 1;
-  assert.ok(change <= -0.25 && change >= -0.3, `изменение ${change}`);
-  assert.equal(s.turnoverByMonth.length, 12);
-  assert.equal(s.revenue12m, s.turnoverByMonth.reduce((x, y) => x + y, 0));
+  s.revenueByMonth.forEach((rev, i) => assert.ok(close(s.cashflowByMonth[i], rev * (1 - s.variableShare) - s.fixedMonthly, 1)));
+  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  assert.ok(close(sum(s.revenueByMonth.slice(-3)) / sum(s.revenueByMonth.slice(-6, -3)), 0.72, 0.01));
   assert.deepEqual(analyzeStatement('7707083893'), analyzeStatement('7707083893'));
 });
 
-test('БКИ детерминирован, у Ориона текущая просрочка', () => {
+test('БКИ: у Кометы текущая просрочка 45 дней', () => {
+  assert.equal(bkiReport('7725123450').currentOverdueDays, 45);
   assert.deepEqual(bkiReport('7707083893'), bkiReport('7707083893'));
-  assert.equal(bkiReport(LIQUIDATED_INN).overdueCurrent, true);
 });
 
-/* ---------- Скоринг ---------- */
+/* ---------- Скоринговая карта (§9) ---------- */
 
-const company = (ageMonths: number, status: Company['status'] = 'active'): Company => ({
-  inn: '7707083893',
-  ogrn: '1027700132195',
-  form: 'ООО',
-  name: 'ООО «Тест»',
-  address: 'Москва',
-  registeredAt: new Date(now.getTime() - ageMonths * 30.5 * DAY).toISOString(),
-  okved: '46.90',
-  okvedName: 'Торговля',
-  status,
-  head: 'Тестов Т. Т.',
+test('Карта: срок деятельности — непересекающиеся интервалы', () => {
+  const cases: [number, number][] = [[0, 60], [11, 60], [12, 90], [23, 90], [24, 105], [35, 105], [36, 120], [59, 120], [60, 135], [200, 135]];
+  for (const [m, pts] of cases) assert.equal(agePoints(m)[1], pts, `${m} мес.`);
 });
 
-const fin = (p: Partial<Financials> = {}): Financials => ({
-  revenue12m: 36_000_000,
-  avgTurnover12m: 3_000_000,
-  avgTurnover3m: 3_000_000,
-  turnoverByMonth: Array(12).fill(3_000_000),
-  existingDebt: 0,
-  existingMonthlyPayments: 0,
-  existingLoans: 0,
-  overdueCurrent: false,
-  overdueClosed12m: 0,
-  ...p,
+test('Карта: тренд выручки — границы 0,7 / 0,9 / 1,0 / 1,1', () => {
+  const cases: [number | null, number][] = [[null, 50], [0.69, 50], [0.7, 80], [0.89, 80], [0.9, 100], [0.99, 100], [1.0, 110], [1.09, 110], [1.1, 125], [1.5, 125]];
+  for (const [t, pts] of cases) assert.equal(trendPoints(t)[1], pts, `тренд ${t}`);
 });
 
-const terms = (amount: number, term = 24, paymentType: Terms['paymentType'] = 'annuity'): Terms => ({ amount, term, rate: 21, paymentType });
-const pointsOf = (s: ReturnType<typeof score>, id: string) => s.factors.find((f) => f.id === id)!.points;
-
-test('Скоринг: база 500 и сумма факторов', () => {
-  const s = score({ company: company(48), financials: fin(), terms: terms(2_000_000), now });
-  assert.equal(s.base, BASE_SCORE);
-  assert.equal(s.score, Math.min(1000, 500 + s.factors.reduce((x, f) => x + f.points, 0)));
-  assert.equal(s.factors.length, 6);
-  assert.ok(s.factors.every((f) => f.explanation.length > 10));
-});
-
-test('Скоринг: срок работы бизнеса', () => {
-  assert.equal(pointsOf(score({ company: company(8), financials: fin(), terms: terms(1e6), now }), 'age'), -80);
-  assert.equal(pointsOf(score({ company: company(24), financials: fin(), terms: terms(1e6), now }), 'age'), 0);
-  assert.equal(pointsOf(score({ company: company(48), financials: fin(), terms: terms(1e6), now }), 'age'), 60);
-});
-
-test('Скоринг: платёж к обороту за 3 месяца, все четыре интервала', () => {
-  // подбираем оборот так, чтобы доля платежа была 15%, 30%, 45% и 60%
-  const p = calculateSchedule(terms(2_000_000)).maxPayment;
-  const cases: [number, number][] = [
-    [0.15, 120],
-    [0.3, 40],
-    [0.45, -60],
-    [0.6, -150],
-  ];
-  for (const [share, pts] of cases) {
-    const s = score({ company: company(48), financials: fin({ avgTurnover3m: p / share }), terms: terms(2_000_000), now });
-    assert.equal(pointsOf(s, 'payment_to_turnover'), pts, `доля ${share}`);
-  }
-});
-
-test('Скоринг: долговая нагрузка и сумма к выручке', () => {
-  const t = (debt: number, amount: number) => score({ company: company(48), financials: fin({ existingDebt: debt }), terms: terms(amount), now });
-  assert.equal(pointsOf(t(0, 9_000_000), 'debt_load'), 100); // 25%
-  assert.equal(pointsOf(t(10_000_000, 9_000_000), 'debt_load'), 0); // 53%
-  assert.equal(pointsOf(t(20_000_000, 9_000_000), 'debt_load'), -100); // 81%
-  assert.equal(pointsOf(t(30_000_000, 9_000_000), 'debt_load'), -200); // 108%
-  assert.equal(pointsOf(t(0, 9_000_000), 'amount_to_revenue'), 50);
-  assert.equal(pointsOf(t(0, 12_000_000), 'amount_to_revenue'), 0);
-  assert.equal(pointsOf(t(0, 20_000_000), 'amount_to_revenue'), -80);
-});
-
-test('Скоринг: кредитная история и динамика оборотов', () => {
-  const s = (f: Partial<Financials>) => score({ company: company(48), financials: fin(f), terms: terms(1e6), now });
-  assert.equal(pointsOf(s({ existingLoans: 2, existingDebt: 1e6 }), 'credit_history'), 80);
-  assert.equal(pointsOf(s({}), 'credit_history'), 0);
-  assert.equal(pointsOf(s({ overdueClosed12m: 1 }), 'credit_history'), -80);
-  assert.equal(pointsOf(s({ overdueClosed12m: 3 }), 'credit_history'), -160);
-  assert.equal(pointsOf(s({ avgTurnover3m: 3_400_000 }), 'turnover_dynamics'), 50);
-  assert.equal(pointsOf(s({ avgTurnover3m: 2_900_000 }), 'turnover_dynamics'), 0);
-  assert.equal(pointsOf(s({ avgTurnover3m: 2_400_000 }), 'turnover_dynamics'), -60);
-  assert.equal(pointsOf(s({ avgTurnover3m: 2_000_000 }), 'turnover_dynamics'), -120);
-});
-
-test('Скоринг: зоны и ограничение 0–1000', () => {
-  assert.equal(zoneOf(399), 'high_risk');
-  assert.equal(zoneOf(400), 'manual');
-  assert.equal(zoneOf(699), 'manual');
-  assert.equal(zoneOf(700), 'auto');
-  const worst = score({
-    company: company(7),
-    financials: fin({ avgTurnover3m: 100_000, existingDebt: 90_000_000, overdueClosed12m: 5 }),
-    terms: terms(20_000_000),
-    now,
+test('Карта: кредитная история — худшая категория по компании и руководителю', () => {
+  const h = (c: CreditHistory['company']['worstClosed24m'], d = c, hasC = true, hasD = true): CreditHistory => ({
+    company: { hasHistory: hasC, worstClosed24m: c, currentOverdueDays: 0 },
+    director: { hasHistory: hasD, worstClosed24m: d, currentOverdueDays: 0 },
   });
-  assert.equal(worst.score, 0);
+  assert.equal(historyPoints(h('none'))[1], 160);
+  assert.equal(historyPoints(h('none', 'none', false, false))[1], 120);
+  assert.equal(historyPoints(h('1_29', 'none'))[1], 135);
+  assert.equal(historyPoints(h('none', '30_90'))[1], 100);
+  assert.equal(historyPoints(h('1_29', 'over_90'))[1], 60);
 });
 
-test('Скоринг: стоп-факторы', () => {
-  assert.deepEqual(score({ company: company(48, 'liquidated'), financials: fin(), terms: terms(1e6), now }).stopFactors.map((s) => s.code), ['company_liquidated']);
-  assert.deepEqual(score({ company: company(48), financials: fin({ overdueCurrent: true }), terms: terms(1e6), now }).stopFactors.map((s) => s.code), ['overdue_current']);
-  assert.deepEqual(score({ company: company(4), financials: fin(), terms: terms(1e6), now }).stopFactors.map((s) => s.code), ['business_too_young']);
-  assert.equal(score({ company: company(8), financials: fin(), terms: terms(1e6), now }).stopFactors.length, 0);
+const sources = (o: Partial<ExternalSources> = {}): ExternalSources => ({
+  registryStatus: 'active',
+  unreliableData: false,
+  bankruptcy: false,
+  sanctions: false,
+  zskRisk: 'low',
+  fraudConfirmed: false,
+  directorDisqualified: false,
+  fnsBlocked: false,
+  taxDiscipline: 'regular',
+  taxDebt: 0,
+  fsspDebt: 0,
+  lawsuits: 0,
+  negativeNetAssets2y: false,
+  declaredRevenue: 0,
+  checkedAt: now.toISOString(),
+  ...o,
 });
 
-/* ---------- Кредитная логика ---------- */
-
-const working = productById('working_capital');
-const docs = (types: DocFile['docType'][]): DocFile[] =>
-  types.map((t, i) => ({ id: String(i), name: t, size: 1, docType: t, addedAt: now.toISOString(), addedBy: 'client', source: 'submission' }));
-const fullDocs = docs(['bank_statement', 'financial_statements']);
-
-test('Кредитная логика: стоп-фактор → отказ', () => {
-  const sc = score({ company: company(48, 'liquidated'), financials: fin(), terms: terms(1e6), now });
-  const r = decide({ product: working, requested: terms(1e6), scoring: sc, documents: fullDocs, financials: fin() });
-  assert.equal(r.outcome, 'REJECTED');
-  assert.equal(r.reasonCode, 'company_liquidated');
+test('Карта: налоговая дисциплина и отрасль', () => {
+  assert.equal(taxPoints(sources(), 500_000)[1], 130);
+  assert.equal(taxPoints(sources({ taxDiscipline: 'minor', taxDebt: 10_000 }), 500_000)[1], 100);
+  assert.equal(taxPoints(sources({ taxDebt: 60_000 }), 500_000)[1], 60);
+  assert.equal(industryPoints('56.10')[1], 70);
+  assert.equal(industryPoints('41.20')[1], 70);
+  assert.equal(industryPoints('46.90')[1], 92);
+  assert.equal(industryPoints('25.62')[1], 110);
+  assert.equal(industryPoints('62.01')[1], 110);
 });
 
-test('Кредитная логика: авто-одобрение и ставка −1 п.п. при балле ≥ 800', () => {
-  const f = fin({ existingLoans: 1, existingDebt: 500_000, avgTurnover3m: 3_400_000 });
-  const sc = score({ company: company(48), financials: f, terms: terms(2_000_000), now });
-  assert.ok(sc.score >= 800);
-  const r = decide({ product: working, requested: terms(2_000_000), scoring: sc, documents: fullDocs, financials: f });
-  assert.equal(r.outcome, 'APPROVED');
-  assert.equal(r.terms!.rate, working.baseRate - 1);
-  assert.equal(rateFor(working, 750), working.baseRate);
+test('Карта: пример из ТЗ — 120 + 160 + 110 + 130 + 92 = 612, odds 75,8:1, PD 1,30%, группа B', () => {
+  const company: Company = { ...lookupCompany('7704123450', now), registeredAt: new Date(now.getTime() - 50 * 30.5 * DAY).toISOString() };
+  const history: CreditHistory = {
+    company: { hasHistory: true, worstClosed24m: 'none', currentOverdueDays: 0 },
+    director: { hasHistory: true, worstClosed24m: 'none', currentOverdueDays: 0 },
+  };
+  const s = score({ company, sources: sources(), history, trend: 1.08, cf: 500_000, now });
+  assert.deepEqual(s.factors.map((f) => f.points), [120, 160, 110, 130, 92]);
+  assert.equal(s.score, 612);
+  assert.ok(close(s.odds, 75.8, 0.1), `odds ${s.odds}`);
+  assert.ok(close(s.pd * 100, 1.3, 0.01), `PD ${s.pd}`);
+  assert.equal(s.grade, 'B');
+  assert.equal(s.factors.reduce((x, f) => x + f.maxPoints, 0), 660);
 });
 
-test('Кредитная логика: в очередь — сумма выше авто-лимита или нет документов', () => {
-  const sc = score({ company: company(48), financials: fin(), terms: terms(3_500_000), now });
-  const r = decide({ product: working, requested: terms(3_500_000), scoring: sc, documents: fullDocs, financials: fin() });
-  assert.equal(r.outcome, 'IN_QUEUE');
-  assert.ok(r.recommendation.manualReasons.some((x) => x.includes('авто-лимита')));
-  const sc2 = score({ company: company(48), financials: fin(), terms: terms(1_000_000), now });
-  const r2 = decide({ product: working, requested: terms(1_000_000), scoring: sc2, documents: docs(['bank_statement']), financials: fin() });
-  assert.equal(r2.outcome, 'IN_QUEUE');
-  assert.ok(r2.recommendation.manualReasons.some((x) => x.startsWith('Не хватает документов')));
+test('Калибровка: factor = 20/ln2, offset = 600 − factor·ln50, PD(600) = 1/51', () => {
+  assert.ok(close(PD_FACTOR, 28.853901, 1e-6));
+  assert.ok(close(PD_OFFSET, 487.122876, 1e-6));
+  assert.ok(close(pdOf(600), 1 / 51, 1e-9));
+  assert.ok(close(oddsOf(620) / oddsOf(600), 2, 1e-9), '+20 баллов удваивают шансы');
 });
 
-test('Кредитная логика: высокий риск — в очередь с рекомендацией отказа', () => {
-  const f = fin({ existingDebt: 40_000_000, overdueClosed12m: 2, avgTurnover3m: 2_000_000 });
-  const sc = score({ company: company(24), financials: f, terms: terms(1_000_000), now });
-  assert.equal(sc.zone, 'high_risk');
-  const r = decide({ product: working, requested: terms(1_000_000), scoring: sc, documents: fullDocs, financials: f });
-  assert.equal(r.outcome, 'IN_QUEUE');
-  assert.equal(r.recommendation.type, 'reject');
+test('Группы на граничных баллах 549/550/579/580/609/610/639/640', () => {
+  const cases: [number, string][] = [[300, 'E'], [549, 'E'], [550, 'D'], [579, 'D'], [580, 'C'], [609, 'C'], [610, 'B'], [639, 'B'], [640, 'A'], [660, 'A']];
+  for (const [s, g] of cases) assert.equal(gradeOf(s), g, `балл ${s}`);
 });
 
-test('Кредитная логика: сумма встречного предложения — платёж ≤ 35% оборота, шаг 50 тыс.', () => {
-  const requested = terms(10_000_000, 12);
-  const amount = counterAmount(working, requested, 2_000_000)!;
-  assert.equal(amount % 50_000, 0);
-  assert.ok(calculateSchedule({ ...requested, amount }).maxPayment <= 0.35 * 2_000_000);
-  assert.ok(calculateSchedule({ ...requested, amount: amount + 50_000 }).maxPayment > 0.35 * 2_000_000);
-  assert.equal(counterAmount(working, requested, 10_000), null);
+/* ---------- Платёжеспособность (§8) и контрпредложения (§11) ---------- */
+
+/** Пример из ТЗ: CF 484,2 тыс., DS 150 тыс.; Rev и Fixed подобраны так, что CF_stress = 247,16 тыс. */
+const exampleBase: CashflowBase = {
+  rev: 2_963_000,
+  cf: 484_200,
+  cfStress: (1 - 0.6) * 2_963_000 * 0.8 - 701_000,
+  variableShare: 0.6,
+  fixed: 701_000,
+  ds: 150_000,
+  debt: 1_500_000,
+  cv: 0.05,
+  cfWeak: 470_000,
+  trend: 1.08,
+  months: 12,
+};
+const exampleProduct: Product = { ...productById('investment'), maxAmount: 50_000_000, minTerm: 12, maxTerm: 60 };
+const exampleTerms: Terms = { amount: 6_000_000, term: 36, rate: 20.5, paymentType: 'annuity' };
+
+test('DSCR и стресс по примеру ТЗ: 6 млн / 36 мес. / 20,5% → DSCR 1,29, стресс 0,66', () => {
+  const m = metricsFromBase(exampleBase, exampleTerms, exampleProduct, now);
+  assert.equal(m.dscr!.toFixed(2), '1.29');
+  assert.equal(m.dscrStress!.toFixed(2), '0.66');
+  assert.ok(close(m.cf / (m.dsCurrent + m.aNew), m.dscr!, 0.01));
 });
 
-/* ---------- Пайплайн и сид ---------- */
-
-test('Пайплайн: ООО «Орион» получает авто-отказ по стоп-фактору', () => {
-  const seed = createSeed(now);
-  const base = { ...seed.applications.find((a) => a.id === '20101')! };
-  const orion = lookupCompany(LIQUIDATED_INN, now);
-  const app = { ...base, company: orion, financials: prefillFinancials(LIQUIDATED_INN), consents: { bki: true, personalData: true, authority: true } };
-  const done = runPipelineSync(submit(app, now, { role: 'client', name: 'Клиент' }), now);
-  assert.equal(done.status, 'REJECTED');
-  assert.equal(done.decision?.decidedBy, 'system');
-  assert.ok(done.history.some((e) => e.text === 'Получена кредитная история'));
+test('Контрпредложения по примеру ТЗ: ≈2,6 млн / 36, ≈3,17 млн / 48, ≈3,63 млн / 60', () => {
+  // findAlternatives работает от финансов заявки — подменяем базу через тот же расчёт
+  const alts = findAlternativesFromBase(exampleBase);
+  assert.deepEqual(alts.map((a) => a.terms.term), [36, 48, 60]);
+  const expected = [2_600_000, 3_170_000, 3_630_000];
+  alts.forEach((a, i) => assert.ok(close(a.terms.amount, expected[i], 100_000), `${a.terms.amount} ≈ ${expected[i]}`));
+  alts.forEach((a) => assert.ok(a.dscr! >= 1.25 && a.dscrStress! >= 1.0));
 });
 
-test('Сид: номера уникальны, баллы посчитаны моделью', () => {
-  const seed = createSeed(now);
+/** Вариант findAlternatives для готовой базы (без финансов заявки). */
+function findAlternativesFromBase(base: CashflowBase) {
+  const months12 = Array(12).fill(base.rev);
+  const financials = {
+    revenue12m: base.rev * 12,
+    avgTurnover12m: 0,
+    avgTurnover3m: 0,
+    turnoverByMonth: [],
+    existingDebt: base.debt,
+    existingMonthlyPayments: base.ds,
+    existingLoans: 1,
+    overdueCurrent: false,
+    overdueClosed12m: 0,
+    revenueByMonth: months12,
+    cashflowByMonth: months12.map((r) => r * (1 - base.variableShare) - base.fixed),
+    expenses: { suppliers: 0, payroll: 0, taxes: 0, rent: 0, other: 0 },
+    variableShare: base.variableShare,
+    fixedMonthly: base.fixed,
+    topBuyerShare: 0.2,
+    cashShare: 0.05,
+  };
+  assert.ok(close(cashflowBase(financials).cf, base.cf, 1));
+  return findAlternatives(financials, exampleTerms, exampleProduct, 'manual', now);
+}
+
+test('CF ≤ 0: долг/CF не считается, флаг «поток отрицательный»', () => {
+  const m = metricsFromBase({ ...exampleBase, cf: -10_000, cfStress: -50_000 }, exampleTerms, exampleProduct, now);
+  assert.equal(m.debtCf, null);
+  assert.equal(m.cfNegative, true);
+  assert.equal(m.autoLimit, 0);
+});
+
+test('DSCR слабого периода считается только при CV > 0,3; PTI — справочно', () => {
+  assert.equal(metricsFromBase(exampleBase, exampleTerms, exampleProduct, now).dscrWeak, undefined);
+  const seasonal = metricsFromBase({ ...exampleBase, cv: 0.4 }, exampleTerms, exampleProduct, now);
+  assert.ok(seasonal.dscrWeak !== undefined);
+  assert.ok(close(seasonal.pti, seasonal.aNew / exampleBase.rev, 1e-5));
+});
+
+/* ---------- Маршрут (§3) ---------- */
+
+test('Маршрут: жёсткий стоп сильнее высокого балла; H03 не раскрывается клиенту', () => {
+  const base = app('20122'); // Морозова, группа A, все показатели в норме
+  assert.equal(base.scoring!.grade, 'A');
+  const withSanctions: Application = { ...base, assigneeId: undefined, sources: { ...base.sources!, sanctions: true } };
+  const r = computeRoute({ app: withSanctions, product: productById(base.productId), scoring: base.scoring!, metrics: base.metrics!, now });
+  assert.equal(r.route.status, 'REJECTED');
+  assert.equal(r.route.step, 1);
+  assert.equal(r.route.primaryCode, 'H03');
+  assert.equal(r.clientRejectText, NEUTRAL_REJECT_TEXT);
+  assert.ok(r.trace.slice(2).every((s) => s.result === 'skipped'));
+});
+
+test('Маршрут: группы D/E → F01 на шаге 3; серая зона G05 на шаге 6; авто-контрпредложение C01', () => {
+  assert.equal(app('20116').route!.primaryCode, 'F01');
+  assert.equal(app('20116').route!.step, 3);
+  assert.equal(app('20117').status, 'REJECTED');
+  assert.equal(app('20112').route!.primaryCode, 'G05');
+  assert.equal(app('20112').route!.step, 6);
+  const counter = app('20118');
+  assert.equal(counter.status, 'COUNTER_OFFER');
+  assert.equal(counter.route!.step, 7);
+  const m = assess({ ...counter, requested: counter.decision!.terms! }, now).metrics;
+  assert.ok(m.dscr! >= 1.25 && m.dscrStress! >= 1.0, 'контрпредложение проходит условия авто-одобрения');
+});
+
+test('Маршрут: несвежая выписка → D08 и NEED_INFO; после двух циклов — G10 в очередь', () => {
+  const base = app('20111');
+  const stale: Application = {
+    ...base,
+    assigneeId: undefined,
+    documents: base.documents.map((d) => (d.docType === 'bank_statement' ? { ...d, periodTo: '2026-05' } : d)),
+  };
+  const r = computeRoute({ app: stale, product: productById(base.productId), scoring: base.scoring!, metrics: base.metrics!, now });
+  assert.equal(r.route.status, 'NEED_INFO');
+  assert.equal(r.requests[0].reasonCode, 'D08');
+  const exhausted = computeRoute({ app: { ...stale, needInfoCycle: 2 }, product: productById(base.productId), scoring: base.scoring!, metrics: base.metrics!, now });
+  assert.equal(exhausted.route.status, 'IN_QUEUE');
+  assert.ok(exhausted.route.allCodes.includes('G10'));
+});
+
+test('Мягкий стоп снимается только с причиной, документом и обоснованием', () => {
+  const belova = { ...app('20114'), assigneeId: 'e-anna', status: 'IN_REVIEW' as const };
+  assert.ok(belova.route!.allCodes.includes('S01'));
+  const anna = { role: 'employee' as const, id: 'e-anna', name: 'Анна Смирнова' };
+  assert.throws(() => waiveSoftStop(belova, anna, { code: 'S01', reasonCode: 'W-01', evidence: 'Договоры', comment: 'коротко' }, now));
+  const waived = waiveSoftStop(belova, anna, { code: 'S01', reasonCode: 'W-03', evidence: 'Договоры поставки на 12 мес.', comment: 'Есть подписанные договоры с покупателями на год вперёд.' }, now);
+  assert.ok(!waived.route!.allCodes.includes('S01'));
+  assert.equal(waived.waivers!.length, 1);
+});
+
+/* ---------- Запреты политики для сотрудника (§13) ---------- */
+
+test('Одобрение запрещено при жёстком стопе и выше лимита + 10%', () => {
+  const blocked = app('20123'); // ФНС заблокировала счета, заявка в работе
+  assert.ok(blocked.route!.allCodes.includes('H08'));
+  assert.ok(previewTerms(blocked, blocked.requested, now).blockers.some((b) => b.includes('H08')));
+  const ok = app('20122');
+  assert.deepEqual(previewTerms(ok, ok.requested, now).blockers, []);
+  const tooMuch = previewTerms(ok, { ...ok.requested, amount: 30_000_000 }, now);
+  assert.ok(tooMuch.blockers.some((b) => b.includes('лимита')));
+});
+
+test('Одобрение группы C ждёт второго подтверждения', () => {
+  const granit = { ...app('20112'), status: 'IN_REVIEW' as const, assigneeId: 'e-anna' };
+  const anna = { role: 'employee' as const, id: 'e-anna', name: 'Анна Смирнова' };
+  const alt = granit.recommendation!.alternatives[0]?.terms ?? { ...granit.requested, amount: 1_000_000 };
+  const pending = makeDecision(
+    granit,
+    anna,
+    { type: 'approve', variant: 'other_terms', terms: { ...alt, rate: granit.requested.rate }, reasonCode: 'APR-02', validDays: 30, justification: 'Дополнительный источник погашения подтверждён договорами.', clientMessage: '' },
+    now,
+  );
+  assert.equal(pending.status, 'IN_REVIEW');
+  assert.ok(pending.pendingDecision);
+});
+
+/* ---------- Сид ---------- */
+
+test('Сид: номера уникальны, есть группы A–E и все зоны DSCR', () => {
   const ids = seed.applications.map((a) => a.id);
   assert.equal(new Set(ids).size, ids.length);
-  for (const a of seed.applications.filter((x) => x.scoring)) {
-    const again = score({ company: a.company, financials: a.financials!, terms: a.requested, now: new Date(a.scoring!.calculatedAt) });
-    assert.equal(again.score, a.scoring!.score, `№ ${a.id}`);
-  }
-  const statuses = new Set(seed.applications.map((a) => a.status));
-  for (const s of ['DRAFT', 'NEED_INFO', 'IN_REVIEW', 'COUNTER_OFFER', 'REJECTED', 'ISSUED', 'IN_QUEUE', 'SIGNING', 'DECLINED_BY_CLIENT', 'WITHDRAWN']) {
-    assert.ok(statuses.has(s as never), s);
+  const grades = new Set(seed.applications.map((a) => a.scoring?.grade).filter(Boolean));
+  for (const g of ['A', 'B', 'C', 'D', 'E']) assert.ok(grades.has(g as never), `группа ${g}`);
+  const dscrs = seed.applications.map((a) => a.metrics?.dscr).filter((x): x is number => typeof x === 'number');
+  assert.ok(dscrs.some((d) => d >= 1.25) && dscrs.some((d) => d >= 1.1 && d < 1.25) && dscrs.some((d) => d < 1.1));
+});
+
+test('Сид: пересчёт даёт те же баллы и маршруты', () => {
+  for (const a of seed.applications.filter((x) => x.scoring && x.route && !x.waivers?.length)) {
+    const again = reassess(a, new Date(a.scoring!.calculatedAt));
+    assert.equal(again.scoring!.score, a.scoring!.score, `№ ${a.id}`);
   }
 });

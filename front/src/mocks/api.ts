@@ -320,7 +320,44 @@ export const mockApi: Api = {
       await wait(500, 800);
       return mutate(appId, employeeId, (a, u) => {
         requireAssignee(a, u);
-        return ops.rescore(a, new Date(), ops.actorOf(u));
+        return ops.reassess(a, new Date(), ops.actorOf(u), 'по запросу сотрудника');
+      });
+    },
+
+    preview(appId, terms) {
+      return ops.previewTerms(appOf(db.getSnapshot(), appId), terms);
+    },
+
+    async waiveSoftStop(appId, employeeId, input) {
+      await wait();
+      return mutate(appId, employeeId, (a, u) => {
+        requireAssignee(a, u);
+        return ops.waiveSoftStop(a, ops.actorOf(u), input, new Date());
+      });
+    },
+
+    async remind(appId, employeeId) {
+      await wait(200, 400);
+      return mutate(appId, employeeId, (a, u) => {
+        if (u.role !== 'employee') throw new Error('Действие доступно только сотруднику банка');
+        if (a.assigneeId && a.assigneeId !== u.id) throw new Error('Напомнить может специалист, у которого заявка в работе');
+        return ops.remind(a, ops.actorOf(u), new Date());
+      });
+    },
+
+    async confirmDecision(appId, employeeId) {
+      await wait();
+      return mutate(appId, employeeId, (a, u) => {
+        if (u.role !== 'employee') throw new Error('Действие доступно только сотруднику банка');
+        return ops.confirmDecision(a, ops.actorOf(u), new Date());
+      });
+    },
+
+    async returnDecision(appId, employeeId, comment) {
+      await wait();
+      return mutate(appId, employeeId, (a, u) => {
+        if (u.role !== 'employee') throw new Error('Действие доступно только сотруднику банка');
+        return ops.returnDecision(a, ops.actorOf(u), comment, new Date());
       });
     },
 

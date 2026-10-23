@@ -6,8 +6,9 @@ import { createSeed } from './seed.ts';
  * Каждая запись — «прочитать свежее → изменить → записать», поэтому вкладки не затирают друг друга.
  * Изменения из другой вкладки приходят через событие storage.
  */
-export const STORAGE_KEY = 'business-cabinet-state-v3';
-const LEGACY_KEYS = ['business-cabinet-state-v2', 'business-cabinet-state-v1'];
+/** v4: скоринговая карта 300–660, платёжеспособность и маршрут по ТЗ */
+export const STORAGE_KEY = 'business-cabinet-state-v4';
+const LEGACY_KEYS = ['business-cabinet-state-v3', 'business-cabinet-state-v2', 'business-cabinet-state-v1'];
 
 type Listener = () => void;
 const listeners = new Set<Listener>();
@@ -18,6 +19,7 @@ function isValid(v: unknown): v is DbState {
   return (
     !!s &&
     s.schema === 3 &&
+    s.applications.every((a) => !a.scoring || 'grade' in a.scoring) &&
     Array.isArray(s.users) &&
     Array.isArray(s.applications) &&
     Array.isArray(s.accounts) &&

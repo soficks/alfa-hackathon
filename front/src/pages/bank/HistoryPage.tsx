@@ -172,7 +172,7 @@ function Details({ app }: { app: Application }) {
         <dt>Сотрудник</dt>
         <dd>{d?.decidedBy ?? '—'}</dd>
         <dt>Балл скоринга</dt>
-        <dd>{app.scoring ? `${app.scoring.score} / 1000` : '—'}</dd>
+        <dd>{app.scoring ? `группа ${app.scoring.grade} · ${app.scoring.score} / 660` : '—'}</dd>
       </dl>
 
       <table className="compare compare--small">

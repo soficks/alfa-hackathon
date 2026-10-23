@@ -78,3 +78,6 @@ export function previousMonthName(now = new Date()) {
 }
 
 export const initials = (firstName: string, lastName: string) => `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
+
+/** 1,29 — коэффициенты (DSCR, долг/CF); null — «—» */
+export const ratio = (x: number | null | undefined, digits = 2) => (x === null || x === undefined || !Number.isFinite(x) ? '—' : x.toFixed(digits).replace('.', ','));

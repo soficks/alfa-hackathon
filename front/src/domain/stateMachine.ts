@@ -1,16 +1,18 @@
 import type { AppStatus } from './types.ts';
 
 /**
- * Переходы заявки. DRAFT не отзывается — черновик удаляется.
+ * Переходы заявки (docs/TZ_credit_pipeline.md, §3 и §15). DRAFT не отзывается — черновик удаляется.
+ * Авто-проверки могут сами запросить сведения (шаг 2) и сделать контрпредложение (шаг 7);
+ * после закрытия системных запросов проверки повторяются с шага 1.
  * Любое изменение статуса проходит через assertTransition.
  */
 export const TRANSITIONS: Record<AppStatus, AppStatus[]> = {
   DRAFT: ['SUBMITTED'],
   SUBMITTED: ['AUTO_CHECKS'],
-  AUTO_CHECKS: ['APPROVED', 'REJECTED', 'IN_QUEUE'],
+  AUTO_CHECKS: ['APPROVED', 'REJECTED', 'IN_QUEUE', 'NEED_INFO', 'COUNTER_OFFER'],
   IN_QUEUE: ['IN_REVIEW', 'AUTO_CHECKS', 'WITHDRAWN'],
   IN_REVIEW: ['NEED_INFO', 'APPROVED', 'COUNTER_OFFER', 'REJECTED', 'WITHDRAWN'],
-  NEED_INFO: ['IN_REVIEW', 'WITHDRAWN'],
+  NEED_INFO: ['IN_REVIEW', 'AUTO_CHECKS', 'WITHDRAWN'],
   APPROVED: ['SIGNING'],
   COUNTER_OFFER: ['SIGNING', 'DECLINED_BY_CLIENT'],
   SIGNING: ['ISSUED'],

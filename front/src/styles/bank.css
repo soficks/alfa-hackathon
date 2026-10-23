@@ -219,33 +219,34 @@
   font-weight: 600;
 }
 
-/* Балл скоринга */
-.score-chip {
-  display: inline-grid;
-  place-items: center;
-  min-width: 46px;
+/* Группа риска: буква + балл */
+.grade-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
   height: 26px;
-  padding: 0 8px;
+  padding: 0 9px;
   border-radius: 13px;
   font-size: 12px;
-  font-weight: 600;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.score-chip--auto,
-.zone--auto {
+.grade-chip b {
+  font-size: 13px;
+}
+
+.grade-chip--ok {
   background: var(--st-approved-bg);
   color: var(--st-approved-fg);
 }
 
-.score-chip--manual,
-.zone--manual {
+.grade-chip--warn {
   background: var(--st-info-bg);
   color: var(--st-info-fg);
 }
 
-.score-chip--high_risk,
-.zone--high_risk {
+.grade-chip--fail {
   background: var(--st-rejected-bg);
   color: var(--st-rejected-fg);
 }
@@ -476,81 +477,257 @@ aside.bank-grid__side {
   background: var(--st-rejected-bg);
 }
 
-/* Скоринг */
-.score-card__value {
+/* Оценка клиента: группа, DSCR, стресс, долг/CF */
+.assess__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 12px 0;
+}
+
+@media (max-width: 1200px) {
+  .assess__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.assess-card {
   display: flex;
-  align-items: baseline;
-  gap: 6px;
-  margin: 10px 0 14px;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-top: 3px solid var(--line-2);
+  border-radius: var(--r-sm);
+}
+
+.assess-card--ok {
+  border-top-color: var(--st-approved-dot);
+}
+
+.assess-card--warn {
+  border-top-color: var(--st-info-dot);
+}
+
+.assess-card--fail {
+  border-top-color: var(--st-rejected-dot);
+}
+
+.assess-card__title {
+  font-size: 12px;
   color: var(--muted);
 }
 
-.score-num {
-  font-size: 44px;
-  font-weight: 600;
-  letter-spacing: -0.03em;
-  line-height: 1;
+.assess-card__value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-height: 34px;
+  font-size: 13px;
+  color: var(--muted);
 }
 
-.score-num--auto {
+.assess-card__value b {
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.assess-card--ok .assess-card__value b {
   color: var(--st-approved-fg);
 }
 
-.score-num--manual {
+.assess-card--warn .assess-card__value b {
   color: var(--st-info-fg);
 }
 
-.score-num--high_risk {
+.assess-card--fail .assess-card__value b {
   color: var(--st-rejected-fg);
 }
 
-.score-scale {
-  position: relative;
-  padding-top: 4px;
-}
-
-.score-scale__zones {
-  display: flex;
-  height: 10px;
-  overflow: hidden;
-  border-radius: 5px;
-}
-
-.zone {
-  display: block;
-  height: 100%;
-}
-
-.score-scale__marker {
-  position: absolute;
-  top: -2px;
-  width: 4px;
-  height: 22px;
-  border-radius: 2px;
-  background: var(--ink);
-  transform: translateX(-50%);
-  box-shadow: 0 0 0 2px #fff;
-}
-
-.score-scale__labels {
-  display: grid;
-  grid-template-columns: 40fr 30fr 30fr;
-  margin-top: 8px;
-  font-size: 10px;
+.assess-card__note {
+  margin-top: auto;
+  font-size: 11px;
   color: var(--muted);
 }
 
-.score-scale__labels span:nth-child(2) {
-  text-align: center;
+/* Шкала порогов с точкой клиента */
+.th-scale {
+  position: relative;
+  height: 26px;
 }
 
-.score-scale__labels span:nth-child(3) {
-  text-align: right;
+.th-scale__bar {
+  display: flex;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 3px;
 }
 
-.score-card__why {
-  margin-top: 10px;
+.th-scale__seg--ok,
+.grade-scale__seg--ok {
+  background: var(--st-approved-bg);
+  color: var(--st-approved-fg);
+}
+
+.th-scale__seg--warn,
+.grade-scale__seg--warn {
+  background: var(--st-info-bg);
+  color: var(--st-info-fg);
+}
+
+.th-scale__seg--fail,
+.grade-scale__seg--fail {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
+}
+
+.th-scale__mark {
+  position: absolute;
+  top: 10px;
+  font-size: 10px;
+  color: var(--muted);
+  transform: translateX(-50%);
+}
+
+.th-scale__dot {
+  position: absolute;
+  top: -3px;
+  width: 12px;
+  height: 12px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--ink);
+  transform: translateX(-50%);
+  box-shadow: 0 0 0 1px var(--line-2);
+}
+
+/* Шкала групп A–E на 300–660 */
+.grade-scale {
+  position: relative;
+  padding: 18px 0 16px;
+}
+
+.grade-scale__bar {
+  display: flex;
+  height: 16px;
+  overflow: hidden;
+  border-radius: 4px;
+}
+
+.grade-scale__seg {
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.grade-scale__seg + .grade-scale__seg {
+  border-left: 1px solid #fff;
+}
+
+.grade-scale__marker {
+  position: absolute;
+  top: 0;
+  bottom: 14px;
+  width: 2px;
+  background: var(--ink);
+  transform: translateX(-50%);
+}
+
+.grade-scale__marker b {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--ink);
+  color: #fff;
+  font-size: 10px;
+  line-height: 14px;
+  transform: translateX(-50%);
+}
+
+.grade-scale__ticks span {
+  position: absolute;
+  bottom: 0;
+  font-size: 10px;
+  color: var(--muted);
+  transform: translateX(-50%);
+}
+
+.grade-scale__ticks span:first-child {
+  transform: none;
+}
+
+.grade-scale__ticks span:last-child {
+  transform: translateX(-100%);
+}
+
+.assess-card__grade {
+  font-size: 30px !important;
+}
+
+/* Полоса очков фактора */
+.fill-bar {
+  display: inline-block;
+  width: 80px;
+  height: 6px;
+  margin-right: 8px;
+  overflow: hidden;
+  vertical-align: middle;
+  border-radius: 3px;
+  background: var(--line);
+}
+
+.fill-bar span {
+  display: block;
+  height: 100%;
+  background: var(--ink-2);
+}
+
+.formula {
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--bg);
   font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Код маршрута */
+.code-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: help;
+}
+
+.code-chip--info {
+  background: var(--st-review-bg);
+  color: var(--st-review-fg);
+}
+
+.code-chip--ok {
+  background: var(--st-approved-bg);
+  color: var(--st-approved-fg);
+}
+
+.code-chip--warn {
+  background: var(--st-info-bg);
+  color: var(--st-info-fg);
+}
+
+.code-chip--fail {
+  background: var(--st-rejected-bg);
+  color: var(--st-rejected-fg);
 }
 
 .recommend,

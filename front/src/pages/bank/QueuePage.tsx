@@ -5,10 +5,10 @@ import { EmployeeStatusBadge } from '../../components/StatusBadge';
 import { api } from '../../api';
 import { PRODUCTS, goalById, productById } from '../../config/products';
 import { isSlaOverdue } from '../../domain/alerts';
-import type { Application, ScoreZone } from '../../domain/types';
+import type { Application, Grade } from '../../domain/types';
 import { useAction, useDb, useNow, useUser, useUserName } from '../../store/data';
 import { dateTime, months, rub } from '../../utils/format';
-import { OpenLink, ScoreChip, SlaCell, ZONE_OPTIONS, searchMatch } from './common';
+import { GRADE_OPTIONS, GradeChip, OpenLink, SlaCell, searchMatch } from './common';
 
 export default function QueuePage() {
   const user = useUser();
@@ -19,14 +19,14 @@ export default function QueuePage() {
   const { run, pending, error } = useAction();
   const [q, setQ] = useState('');
   const [product, setProduct] = useState('all');
-  const [zone, setZone] = useState<ScoreZone | 'all'>('all');
+  const [zone, setZone] = useState<Grade | 'all'>('all');
   const [taking, setTaking] = useState<string | null>(null);
 
   const queue = db.applications
     .filter((a) => a.status === 'IN_QUEUE')
     .filter((a) => searchMatch(a, q))
     .filter((a) => product === 'all' || a.productId === product)
-    .filter((a) => zone === 'all' || a.scoring?.zone === zone)
+    .filter((a) => zone === 'all' || a.scoring?.grade === zone)
     .sort((a, b) => (a.slaDueAt ?? '').localeCompare(b.slaDueAt ?? ''));
 
   const colleagues = db.applications.filter((a) => a.assigneeId && a.assigneeId !== user.id && (a.status === 'IN_REVIEW' || a.status === 'NEED_INFO'));
@@ -61,8 +61,8 @@ export default function QueuePage() {
         </label>
         <label className="select">
           <span>Скоринг:</span>
-          <select value={zone} onChange={(e) => setZone(e.target.value as ScoreZone | 'all')} aria-label="Фильтр по зоне скоринга">
-            {ZONE_OPTIONS.map((z) => (
+          <select value={zone} onChange={(e) => setZone(e.target.value as Grade | 'all')} aria-label="Фильтр по группе риска">
+            {GRADE_OPTIONS.map((z) => (
               <option key={z.id} value={z.id}>
                 {z.label}
               </option>
@@ -111,7 +111,7 @@ export default function QueuePage() {
                       <span className="sub">{months(a.requested.term)}</span>
                     </td>
                     <td>
-                      <ScoreChip app={a} />
+                      <GradeChip app={a} />
                     </td>
                     <td className="rec">{a.recommendation?.text ?? '—'}</td>
                     <td>{a.submittedAt ? dateTime(a.submittedAt) : '—'}</td>

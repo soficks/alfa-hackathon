@@ -1,19 +1,20 @@
 import type { DocType, PaymentType } from '../domain/types.ts';
+import { POLICY } from './policy.ts';
 
 /** Шаг суммы для всех продуктов */
 export const AMOUNT_STEP = 50_000;
-/** До этой суммы система может одобрить сама */
-export const AUTO_LIMIT = 3_000_000;
+/** До этой суммы система может одобрить сама (см. config/policy.ts) */
+export const AUTO_LIMIT = POLICY.AUTO_AUTHORITY;
 /** Меньше — предупреждение */
 export const MIN_BUSINESS_AGE_MONTHS = 12;
 /** Меньше — стоп-фактор */
 export const STOP_BUSINESS_AGE_MONTHS = 6;
-/** Сколько дней действует одобрение или встречное предложение */
-export const OFFER_VALID_DAYS = 5;
+/** Сколько дней действует одобрение или встречное предложение (§15 ТЗ) */
+export const OFFER_VALID_DAYS = POLICY.OFFER_TTL_DAYS;
 /** Сколько рабочих дней даём клиенту на ответ по запросу документов */
-export const DOC_REQUEST_DAYS = 2;
+export const DOC_REQUEST_DAYS = POLICY.NEED_INFO_DAYS;
 /** Срок проверки: рабочих дней от поступления */
-export const SLA_BUSINESS_DAYS = 1;
+export const SLA_BUSINESS_DAYS = POLICY.REVIEW_SLA_DAYS;
 
 export type Illustration = 'working' | 'equipment' | 'growth';
 
@@ -114,7 +115,7 @@ export const PRODUCTS: Product[] = [
     maxTerm: 120,
     baseRate: 18,
     paymentTypes: ['annuity', 'differentiated'],
-    requiredDocs: ['bank_statement', 'estimate'],
+    requiredDocs: ['bank_statement', 'estimate', 'collateral'],
     collateral: { required: true, note: 'Нужен залог: покупаемое или другое коммерческое помещение' },
     autoLimit: AUTO_LIMIT,
   },

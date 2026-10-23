@@ -30,7 +30,8 @@ const SESSION_KEY = 'business-cabinet-session';
 
 interface SessionValue {
   user: User | null;
-  login: (role: Role) => void;
+  /** userId — конкретный демо-пользователь (например, второй сотрудник для второго подтверждения) */
+  login: (role: Role, userId?: string) => void;
   logout: () => void;
 }
 
@@ -72,8 +73,8 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   const user = db.users.find((u) => u.id === userId) ?? null;
 
   const login = useCallback(
-    (role: Role) => {
-      const id = demoUserId(api.store.getSnapshot(), role);
+    (role: Role, userId?: string) => {
+      const id = userId ?? demoUserId(api.store.getSnapshot(), role);
       writeSession(id);
       setUserId(id);
     },

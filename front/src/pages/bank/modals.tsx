@@ -157,11 +157,11 @@ export function DecisionModal({ app, onClose }: { app: Application; onClose: () 
   const user = useUser();
   const product = productById(app.productId);
   const bounds = rateBounds(product);
-  const recommended = app.recommendation?.type === 'counter_offer' ? app.recommendation.amount : undefined;
+  const recommended = app.recommendation?.type === 'counter_offer' ? app.recommendation.alternatives[0]?.terms.amount : undefined;
   const [mode, setMode] = useState<'approve' | 'counter_offer'>(app.recommendation?.type === 'counter_offer' ? 'counter_offer' : 'approve');
   const [approveRate, setApproveRate] = useState(app.requested.rate);
   const [offer, setOffer] = useState<Terms>({ ...app.requested, amount: recommended ?? app.requested.amount });
-  const [validDays, setValidDays] = useState(OFFER_VALID_DAYS);
+  const [validDays, setValidDays] = useState<number>(OFFER_VALID_DAYS);
   const [justification, setJustification] = useState('');
   const [message, setMessage] = useState('');
   const { run, pending, error } = useAction();
@@ -180,7 +180,7 @@ export function DecisionModal({ app, onClose }: { app: Application; onClose: () 
   const num = (v: string) => Number(v.replace(/[^\d.,]/g, '').replace(',', '.'));
 
   const submit = async () => {
-    const ok = await run(() => api.applications.decide(app.id, user.id, { type: mode, terms, validDays, justification, clientMessage: message }));
+    const ok = await run(() => api.applications.decide(app.id, user.id, { type: mode, variant: mode === 'approve' ? 'as_requested' : 'counter', terms, reasonCode: mode === 'approve' ? 'APR-01' : 'CNT-01', validDays, justification, clientMessage: message }));
     if (ok) onClose();
   };
 

@@ -5,7 +5,7 @@ import { nearestDue, openRequests } from '../../domain/statusText';
 import type { Application } from '../../domain/types';
 import { useDb, useNow, useUser } from '../../store/data';
 import { rub } from '../../utils/format';
-import { AttentionBadges, OpenLink, ScoreChip, SlaCell, employeeNextStep, needsEmployeeAttention, searchMatch } from './common';
+import { AttentionBadges, GradeChip, OpenLink, SlaCell, employeeNextStep, needsEmployeeAttention, searchMatch } from './common';
 
 type Sort = 'deadline' | 'amount' | 'score';
 
@@ -44,7 +44,7 @@ function Row({ app, now, primary }: { app: Application; now: Date; primary: bool
         <span className="sub">{step.subtitle}</span>
       </td>
       <td>
-        <ScoreChip app={app} />
+        <GradeChip app={app} />
       </td>
       <td>
         <SlaCell app={app} now={now} />

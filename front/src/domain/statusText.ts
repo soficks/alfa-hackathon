@@ -154,5 +154,4 @@ export function employeeStatusLabel(app: Application, nameOf: (userId?: string) 
   }
 }
 
-export const zoneLabel = { high_risk: 'Высокий риск', manual: 'Ручная проверка', auto: 'Авто-одобрение' } as const;
 

@@ -12,13 +12,13 @@ import { goalById, productById, subgoalTitle } from '../../config/products';
 import { PAYMENT_TYPE_LABEL, calculateSchedule } from '../../domain/finance';
 import { unreadForEmployee } from '../../domain/alerts';
 import { canMessage, isFinal } from '../../domain/stateMachine';
-import { zoneLabel } from '../../domain/statusText';
 import { monthsBetween } from '../../domain/time';
-import type { Application, CheckResult, DocFile, Scoring } from '../../domain/types';
+import type { Application, CheckResult, DocFile } from '../../domain/types';
 import { useAction, useApplication, useUser, useUserName } from '../../store/data';
-import { businessAge, compactRub, dateTime, months, percent, rub, time } from '../../utils/format';
+import { businessAge, compactRub, dateTime, months, percent, ratio, rub } from '../../utils/format';
 import { RejectModal, RequestDocsModal, DecisionModal } from './modals';
 import { mainPayment, missingDocTypes } from './derive';
+import { AssessmentCards, ScoringTab } from './assessment';
 
 type Tab = 'overview' | 'docs' | 'scoring' | 'messages' | 'history';
 
@@ -117,7 +117,9 @@ export default function BankApplicationPage() {
                   </li>
                 ))}
             </ul>
-            <p className="micro">Скоринг пересчитан автоматически: {app.scoring?.score} баллов.</p>
+            <p className="micro">
+              Оценка пересчитана автоматически: группа {app.scoring?.grade}, {app.scoring?.score} из 660.
+            </p>
           </div>
           {mine && (
             <button type="button" className="btn btn--outline btn--sm" disabled={ack.pending} onClick={() => ack.run(() => api.applications.acknowledgeChanges(app.id, user.id))}>
@@ -218,6 +220,8 @@ function Overview({ app, onTab, onPreview, onSchedule }: { app: Application; onT
   return (
     <div className="bank-grid">
       <div className="bank-grid__main">
+        <AssessmentCards scoring={app.scoring} metrics={app.metrics} />
+
         <section className="card">
           <div className="card-head">
             <h2 className="card-title">Параметры заявки</h2>
@@ -311,7 +315,7 @@ function Overview({ app, onTab, onPreview, onSchedule }: { app: Application; onT
         <section className="card">
           <h2 className="card-title">Автоматические проверки</h2>
           <ul className="checks">
-            {(['registry', 'bki', 'requisites', 'documents'] as CheckResult['id'][]).map((cid) => {
+            {(['registry', 'sources', 'bki', 'requisites', 'documents'] as CheckResult['id'][]).map((cid) => {
               const c = app.checks.find((x) => x.id === cid);
               if (!c) return null;
               return (
@@ -335,25 +339,24 @@ function Overview({ app, onTab, onPreview, onSchedule }: { app: Application; onT
       </div>
 
       <aside className="bank-grid__side">
-        {app.scoring && <ScoreCard scoring={app.scoring} app={app} />}
-
-        {app.scoring && app.recommendation && app.recommendation.manualReasons.length > 0 && (
+        {app.recommendation && (
           <section className="card why">
-            <h2 className="card-title">Почему нужна ручная проверка</h2>
-            <ul className="why__list">
-              {[...app.scoring.factors]
-                .filter((x) => x.points < 0)
-                .sort((a, b) => a.points - b.points)
-                .slice(0, 3)
-                .map((x) => (
-                  <li key={x.id}>
-                    <strong>{x.title}:</strong> {x.explanation}
+            <h2 className="card-title">Рекомендация системы</h2>
+            <p className={`recommend recommend--${app.recommendation.type}`}>
+              <Icon name="sparkle" size={16} /> {app.recommendation.text}
+            </p>
+            {app.recommendation.alternatives.length > 0 && (
+              <ul className="why__list">
+                {app.recommendation.alternatives.map((x) => (
+                  <li key={`${x.terms.amount}-${x.terms.term}`}>
+                    <strong>
+                      {rub(x.terms.amount)} на {months(x.terms.term)}:
+                    </strong>{' '}
+                    DSCR {ratio(x.dscr)}, стресс {ratio(x.dscrStress)}, платёж {rub(x.payment)}
                   </li>
                 ))}
-              {app.recommendation.manualReasons.map((r) => (
-                <li key={r}>{r}.</li>
-              ))}
-            </ul>
+              </ul>
+            )}
             {statement && (
               <button type="button" className="link-btn link-btn--blue" onClick={() => onPreview(statement)}>
                 Открыть выписку по счёту <Icon name="arrowRight" size={14} />
@@ -376,43 +379,6 @@ function Overview({ app, onTab, onPreview, onSchedule }: { app: Application; onT
         </section>
       </aside>
     </div>
-  );
-}
-
-function ScoreCard({ scoring, app }: { scoring: Scoring; app: Application }) {
-  return (
-    <section className="card score-card">
-      <h2 className="card-title">Результат скоринга</h2>
-      <div className="score-card__value">
-        <strong className={`score-num score-num--${scoring.zone}`}>{scoring.score}</strong> <span>/ 1000</span>
-      </div>
-      <div className="score-scale" aria-label={`Балл ${scoring.score} из 1000, зона: ${zoneLabel[scoring.zone]}`}>
-        <div className="score-scale__zones">
-          <span className="zone zone--high_risk" style={{ width: '40%' }} />
-          <span className="zone zone--manual" style={{ width: '30%' }} />
-          <span className="zone zone--auto" style={{ width: '30%' }} />
-        </div>
-        <span className="score-scale__marker" style={{ left: `${scoring.score / 10}%` }} />
-        <div className="score-scale__labels">
-          <span>0–399 высокий риск</span>
-          <span>400–699 ручная проверка</span>
-          <span>700+ авто-одобрение</span>
-        </div>
-      </div>
-      <p className="micro">Чем выше балл, тем ниже риск. Расчёт: {time(scoring.calculatedAt)}, {dateTime(scoring.calculatedAt).split(',')[0].toLowerCase()}.</p>
-      {app.recommendation && (
-        <>
-          {app.recommendation.manualReasons.length > 0 && (
-            <p className="score-card__why">
-              <strong>Система не решила сама:</strong> {app.recommendation.manualReasons.join('; ').toLowerCase()}.
-            </p>
-          )}
-          <p className={`recommend recommend--${app.recommendation.type}`}>
-            <Icon name="sparkle" size={16} /> {app.recommendation.text}
-          </p>
-        </>
-      )}
-    </section>
   );
 }
 
@@ -488,68 +454,5 @@ function DocsTab({ app, onPreview }: { app: Application; onPreview: (d: DocFile)
         )}
       </aside>
     </div>
-  );
-}
-
-/* ---------- Скоринг ---------- */
-
-function ScoringTab({ app, canRescore }: { app: Application; canRescore: boolean }) {
-  const user = useUser();
-  const { run, pending, error } = useAction();
-  const s = app.scoring;
-  if (!s) return <section className="card muted">Скоринг появится после авто-проверок.</section>;
-  const stale = app.changes.some((c) => c.at > s.calculatedAt);
-  return (
-    <section className="card">
-      <div className="card-head">
-        <h2 className="card-title">
-          Скоринг: {s.score} / 1000 · {zoneLabel[s.zone].toLowerCase()}
-        </h2>
-        {canRescore && (
-          <button type="button" className="btn btn--outline btn--sm" disabled={!stale || pending} onClick={() => run(() => api.applications.rescore(app.id, user.id))} title={stale ? undefined : 'Данные не менялись с последнего расчёта'}>
-            <Icon name="refresh" size={16} /> {pending ? 'Считаем…' : 'Пересчитать'}
-          </button>
-        )}
-      </div>
-      <div className="table-scroll">
-        <table className="data-table factors">
-          <thead>
-            <tr>
-              <th>Фактор</th>
-              <th>Значение</th>
-              <th className="num">Баллы</th>
-              <th>Пояснение</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>Базовый балл</td>
-              <td>—</td>
-              <td className="num">{s.base}</td>
-              <td className="muted">С него начинается расчёт</td>
-            </tr>
-            {s.factors.map((x) => (
-              <tr key={x.id}>
-                <td>{x.title}</td>
-                <td>{x.value}</td>
-                <td className={`num points points--${x.points > 0 ? 'plus' : x.points < 0 ? 'minus' : 'zero'}`}>{x.points > 0 ? `+${x.points}` : x.points}</td>
-                <td>{x.explanation}</td>
-              </tr>
-            ))}
-            <tr className="total-row">
-              <td>Итог</td>
-              <td />
-              <td className="num">{s.score}</td>
-              <td className="muted">Ограничен диапазоном 0–1000</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <p className="micro">
-        Стоп-факторы: {s.stopFactors.length ? s.stopFactors.map((x) => x.text).join('; ') : 'нет'}. Рассчитан {dateTime(s.calculatedAt)}.
-        {stale && ' Данные заявки менялись после расчёта.'}
-      </p>
-      {error && <p className="form-error">{error}</p>}
-    </section>
   );
 }
